@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Data & Databases (The Mart)
+*.duckdb
+*.duckdb.wal
+mart/*/segments/*.parquet
+
+# IDEs
+.vscode/
+.idea/

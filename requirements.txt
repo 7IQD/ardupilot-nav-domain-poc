@@ -1,0 +1,10 @@
+# --- Ingress Layer ---
+pymavlink==2.4.41    # The ArduPilot telemetry protocol engine
+
+# --- Persistence & Weaving Layer ---
+duckdb==1.1.3        # The OLAP database for "Temporal Weaving"
+pandas==2.2.0        # High-level data manipulation
+pyarrow==15.0.0      # Optimized Parquet storage for the Mart
+
+# --- Platform Utilities ---
+python-dotenv==1.0.1 # For managing .config session variables
