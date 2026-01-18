@@ -1,10 +1,11 @@
-# 🟢 NAVIGATION DOMAIN – MASTER DOCUMENT
+# 🟢 NAVIGATION DOMAIN – MASTER DOCUMENT (ELT)
 
 This file consolidates:
 
 * **NAV_REPORT** – Static mission diagnostic
 * **UI Contract** – Frozen dashboard layout & traceability
 * **Phase-Wise Live Reporting Framework** – LRU / SRU logging for upstream & downstream monitoring
+* **ELT Approach** – Raw telemetry loaded first, transformations done in DuckDB views
 
 ---
 
@@ -22,8 +23,8 @@ This file consolidates:
 
 * **Run Identifier:** `SITL_NAV_LAB_001`
 * **Source Stream:** ☑ SITL ☐ Log File ☐ MAVLink
-* **ETL Integrity:** ☑ Deterministic ☑ Read-Only
-* **Runtime Libraries:** `Pandas / NumPy / Matplotlib`
+* **ELT Integrity:** ☑ Deterministic ☑ Read-Only
+* **Runtime Libraries:** `Pandas / NumPy / Matplotlib / DuckDB`
 
 **Status:** *Pipeline verified, reproducible.*
 
@@ -47,14 +48,14 @@ This file consolidates:
 
 **Objective:** Evidence-based validation (what we *can* prove).
 
-| Sub-Domain | Metric            | Observed   | Threshold | Status          |
-| ---------- | ----------------- | ---------- | --------- | --------------- |
-| Nav        | Max |Lat Z|       | `0.00`     | `< 3.0`   | PASS            |
-| Nav        | Max |Lon Z|       | `0.00`     | `< 3.0`   | PASS            |
-| Nav        | Max |Alt Z|       | `0.00`     | `< 3.0`   | PASS            |
-| Nav        | Mean Alt Drift    | `0.01 m`   | ≈ 0       | PASS            |
-| Dynamics   | Mean Ground Speed | `0.01 m/s` | N/A       | INFO            |
-| EKF        | NIS (Pos/Vel)     | —          | —         | ⚠ NOT AVAILABLE |
+| Sub-Domain | Metric            | Observed   | Threshold | Status          |         |      |
+| ---------- | ----------------- | ---------- | --------- | --------------- | ------- | ---- |
+| Nav        | Max               | Lat Z      |           | `0.00`          | `< 3.0` | PASS |
+| Nav        | Max               | Lon Z      |           | `0.00`          | `< 3.0` | PASS |
+| Nav        | Max               | Alt Z      |           | `0.00`          | `< 3.0` | PASS |
+| Nav        | Mean Alt Drift    | `0.01 m`   | ≈ 0       | PASS            |         |      |
+| Dynamics   | Mean Ground Speed | `0.01 m/s` | N/A       | INFO            |         |      |
+| EKF        | NIS (Pos/Vel)     | —          | —         | ⚠ NOT AVAILABLE |         |      |
 
 **Diagnostic Verdict:**
 Navigation solution statistically stable **within observable parameters**.
@@ -86,14 +87,13 @@ Navigation solution statistically stable **within observable parameters**.
 * ☐ Vibration (VIBE)
 * ☐ EKF Covariances
 
-**Reason:**
-Not present in current nav_mart schema / SITL export.
+**Reason:** Not present in current nav_mart schema / SITL export.
 
 ---
 
-### 5. ETL INTEGRITY STATEMENT ✔
+### 5. ELT INTEGRITY STATEMENT ✔
 
-* **Reproducibility:** Report derived directly from deterministic ETL. No manual edits.
+* **Reproducibility:** Report derived directly from **raw telemetry loaded first into DuckDB**; transformations occur in **SQL views only**. No manual edits.
 * **Logic Version:** `v1.0.0`
 
 **Authorized By:** `Student – GSoC Navigation`
@@ -101,11 +101,11 @@ Not present in current nav_mart schema / SITL export.
 
 ---
 
-### 📊 COVERAGE SCORECARD (Why this is 70%)
+### 📊 COVERAGE SCORECARD
 
 | Area                 | Coverage      |
 | -------------------- | ------------- |
-| Metadata / ETL       | 100%          |
+| Metadata / ELT       | 100%          |
 | Operator Summary     | 100%          |
 | Drift & Stability    | 100%          |
 | Z-Score Monitoring   | 100%          |
@@ -118,11 +118,11 @@ Not present in current nav_mart schema / SITL export.
 
 ### 🔑 WHY THIS WORKS (IMPORTANT)
 
-✔ Matches **your proposed vision structurally**
+✔ Matches **domain-first vision structurally**
 ✔ Does **not fake EKF internals**
 ✔ Explicitly declares limitations
 ✔ Scales cleanly when new parameters arrive
-✔ Safe for a beginner
+✔ Safe for a beginner / early POC
 ✔ Strong for GSoC / academic review
 
 ---
@@ -138,12 +138,12 @@ Not present in current nav_mart schema / SITL export.
 
 **Frozen 4-Panel Layout**
 
-| Left Column (Visual Core) | Right Column (Executive Insight) |
-|---------------------------|---------------------------------|
-| Panel 1: Spatial Innovation Heatmap | Panel 1: Operator Verdict |
-| Panel 2: Error Distribution Frequency | Panel 2: Nav Stability Metrics |
-| Panel 3: Z-Score Anomaly Watchdog | Panel 3: Anomaly & Stress Watch |
-| Panel 4: Causal Analysis | Panel 4: Data Honesty & Limits |
+| Left Column (Visual Core)             | Right Column (Executive Insight) |
+| ------------------------------------- | -------------------------------- |
+| Panel 1: Spatial Innovation Heatmap   | Panel 1: Operator Verdict        |
+| Panel 2: Error Distribution Frequency | Panel 2: Nav Stability Metrics   |
+| Panel 3: Z-Score Anomaly Watchdog     | Panel 3: Anomaly & Stress Watch  |
+| Panel 4: Causal Analysis              | Panel 4: Data Honesty & Limits   |
 
 **Rules:**
 
@@ -154,27 +154,28 @@ Not present in current nav_mart schema / SITL export.
 
 ---
 
-## 🟢 PHASE-WISE LIVE REPORTING FRAMEWORK
+## 🟢 PHASE-WISE LIVE REPORTING FRAMEWORK (ELT-AWARE)
 
 ### Purpose
-Turn NAV_REPORT sections into live, dynamic **ETL-aware logging blocks**, catching navigation drift and missing data in real-time.
+
+Turn NAV_REPORT sections into live, dynamic **ELT-aware logging blocks**, catching navigation drift and missing data in real-time.
 
 ---
 
 ### 1. Reporting Units
 
-| Unit | Acronym | Scope | Behavior | Analogy |
-|------|---------|-------|---------|---------|
-| Main Report | LRU (Line-Replaceable Unit) | Mission-level | Rolling updates; overwrites previous line | High-level NAV_REPORT summary |
-| Component Logs | SRU (Shop-Replaceable Unit) | ETL / domain aggregates | Append-only; maintains full history | Heartbeat debug logs |
+| Unit           | Acronym                     | Scope                   | Behavior                                  | Analogy                       |
+| -------------- | --------------------------- | ----------------------- | ----------------------------------------- | ----------------------------- |
+| Main Report    | LRU (Line-Replaceable Unit) | Mission-level           | Rolling updates; overwrites previous line | High-level NAV_REPORT summary |
+| Component Logs | SRU (Shop-Replaceable Unit) | ELT / domain aggregates | Append-only; maintains full history       | Heartbeat debug logs          |
 
 ---
 
-### 2. ETL-Wise Assertions
+### 2. ELT-Wise Assertions
 
 * **Ingress:** Telemetry completeness, timestamp monotonicity
-* **Transformation:** GPS ↔ EKF alignment, unit scaling
-* **Weaving:** ASOF JOIN correctness, drift computation
+* **Transformation:** GPS ↔ EKF alignment, unit scaling (in SQL views)
+* **Weaving:** ASOF JOIN correctness, drift computation (in SQL)
 * **Audit:** Z-score thresholds, innovation stress, missing fields
 
 **Behavior:**
@@ -184,5 +185,64 @@ Turn NAV_REPORT sections into live, dynamic **ETL-aware logging blocks**, catchi
 
 ---
 
-### 3. Implementation Flow
+### 3. Implementation Flow (Phase-Separated)
+
+**Phase 1: Runtime (Live, Non-Persistent)**
+
+* Telemetry flows into in-memory evaluators.
+* LRU updates a single rolling mission-status line.
+* SRU appends timestamped assertion results to flat files.
+* No DB writes occur in this phase.
+
+**Phase 2: Mission End (Seal Point)**
+
+* SRU files are closed.
+* All logs are hashed and marked immutable.
+* Artifacts become eligible for **baseline ingestion**.
+
+**Phase 3: Post-Mission (Baseline ELT)**
+
+* Python performs a single bulk load of **raw telemetry into DuckDB**.
+* Bronze layer stores **raw sealed artifacts**.
+* Silver/Gold views perform **all transformations, derivations, and metrics**.
+* NAV_REPORT generated entirely from **views**.
+
+---
+
+### 4. Baseline Firewall Rule (Non-Negotiable)
+
+* Live LRU/SRU reporting **never writes to the Baseline Database**.
+* Baseline Database populated **only from sealed mission artifacts**.
+* Guarantees **determinism, reproducibility, and audit safety**.
+
+---
+
+### 5. Stakeholder Lenses (Analytics vs Safety)
+
+| Lens Type      | Mathematical Focus                    | Stakeholder   | Purpose                                         |
+| -------------- | ------------------------------------- | ------------- | ----------------------------------------------- |
+| Analytical 📈  | `AVG(), VAR(), REGR_SLOPE()`          | Developers    | Detect slow drifts / long-term health           |
+| Safety/Cert 🚨 | `MAX(), MIN(), BOOL_OR(), COUNT_IF()` | Certification | Prove system never crossed hard limits (spikes) |
+
+**Rule:** All SQL views and dashboards **expose both lenses**, ensuring spikes are never hidden by averages.
+
+---
+
+### 6. Lightweight Component Architecture
+
+| Component             | Why it stays "Lightweight"                                             |
+| --------------------- | ---------------------------------------------------------------------- |
+| **router.py 🛣️**     | Only passes sealed artifacts to DB; doesn’t parse domain               |
+| **controller.py 🎮**  | Triggers load & view queries; no heavy state logic                     |
+| **Domain Objects 🧬** | SQL views act as “virtual objects”; avoids memory-heavy Python objects |
+
+---
+
+✅ **Result:**
+
+* ELT approach keeps **pipeline simple, auditable, and reproducible**.
+* LRU/SRU + SQL views provide **certification-ready, live, and post-mission reporting**.
+* Fully compatible with **GSoC Nav POC roadmap**.
+
+---
 
