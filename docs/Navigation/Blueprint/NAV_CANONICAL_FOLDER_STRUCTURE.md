@@ -1,4 +1,6 @@
-nav_project/                     # Root of Nav domain project
+Canonical NAV Domain Folder Structure
+
+ardupilot-nav-domain-poc/                     # Root of Nav domain project
 │
 ├── src/ 🛠️                       # All logic
 │   ├── router.py                 # Lightweight router, domain-agnostic

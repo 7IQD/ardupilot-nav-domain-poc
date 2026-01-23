@@ -1,42 +1,47 @@
 import os
-import json
+import time
+from .anchor_registry import AnchorRegistry
 
 class DataManager:
-    def __init__(self, base_name="flight_test", folder=None):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.folder = os.path.join(current_dir, folder) if folder else current_dir
-        os.makedirs(self.folder, exist_ok=True)
+    def __init__(self, log_dir, db_path):
+        self.log_dir = log_dir
+        # We use bin_path consistently here
+        self.bin_path = os.path.join(log_dir, "bronze_ledger.bin")
 
-        self.bin_path = os.path.join(self.folder, f"{base_name}.bin")
-        self.jsonl_path = os.path.join(self.folder, f"{base_name}.jsonl")
+        # Create DB folder if it doesn't exist
+        db_folder = os.path.dirname(db_path)
+        if db_folder:
+            os.makedirs(db_folder, exist_ok=True)
 
-        # 🔥 Hot-path state (no syscalls during capture)
-        self.current_inode = 0
-        self.current_offset = 0
+        os.makedirs(log_dir, exist_ok=True)
 
-    def initialize_storage(self, overwrite=False):
-        if overwrite:
-            open(self.bin_path, "wb").close()
-            open(self.jsonl_path, "w").close()
-            self.current_inode = 0
-            self.current_offset = 0
+        self.anchor_reg = AnchorRegistry(db_path)
+
+        # Initialize inode (simplified 1KB logic to match your seek plan)
+        if os.path.exists(self.bin_path):
+            self.current_inode = (os.path.getsize(self.bin_path) // 1024) + 1
         else:
-            # Resume safely
-            self.current_offset = os.path.getsize(self.bin_path)
+            self.current_inode = 1
 
-    def write_entry(self, raw_bytes: bytes):
-        length = len(raw_bytes)
+    def write_bronze_with_anchor(self, raw_bytes, wall_ns, boot_ms=0, epoch_usec=0):
+        """
+        ATOMIC LOCK: Writes raw bytes to Bronze and metadata to Anchor.
+        Returns: (inode, wall_ns)
+        """
+        # 1. Assign Inode
+        inode = self.current_inode
 
-        record = {
-            "inode": self.current_inode + 1,
-            "offset": self.current_offset,
-            "length": length
-        }
+        # 2. Persistence (Q1: Bronze)
+        # Using self.bin_path to match the __init__
+        with open(self.bin_path, "ab") as f:
+            # Padded to 1024 to keep your inode math (size // 1024) consistent
+            f.write(raw_bytes.ljust(1024, b'\x00'))
 
-        with open(self.bin_path, "ab") as bf, open(self.jsonl_path, "a") as jf:
-            bf.write(raw_bytes)
-            jf.write(json.dumps(record) + "\n")
+        # 3. Anchoring (Silver Timing)
+        self.anchor_reg.record_anchor(inode, wall_ns, boot_ms, epoch_usec)
+
+        # 4. Print Validation Hook
+        print(f"[CONTRACT-ATOMIC] Inode {inode} -> Bronze Saved & Anchored at {wall_ns}ns")
 
         self.current_inode += 1
-        self.current_offset += length
-        return self.current_inode
+        return inode, wall_ns

@@ -1,32 +1,15 @@
-### **Refined `.gitignore` for Navigation Domain POC**
-
-```gitignore
-# Python
+# Python & Environment
 __pycache__/
 *.py[cod]
-*$py.class
-venv/
 .venv/
+venv/
 
-# Data & Databases (The Mart)
-*.duckdb
-*.duckdb.wal
-data/processed/
-mart/*/segments/*.parquet
+# Navigation Domain Vault (Binaries)
+*.db
+*.db.wal
+*.log
+bin/
+src/bin/
 
-# Raw Mission Logs (optional, if too large for Git)
-data/raw/*/*.log
-data/raw/*/*.bin
-
-# IDEs
-.vscode/
-.idea/
-```
-# Ignore raw flight data
-src/ingress/bin/*.bin
-src/ingress/bin/*.jsonl
-src/ingress/*.bin
-src/ingress/*.jsonl
-
-# Ignore python cache
-__pycache__/
+# Documentation Scratchpads
+docs/Temp-Learning/
