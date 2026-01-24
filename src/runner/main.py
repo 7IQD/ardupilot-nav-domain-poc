@@ -1,52 +1,59 @@
-import sys
-import os
-from multiprocessing import Process, Queue
-
-# Ensure the 'src' directory is in the path so we can import 'ingress'
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from ingress.sim_vehicle_ingress import run_ingress
-from ingress.materializers import NavDuckDBMaterializer
+#!/usr/bin/env python3
+import time
+from queue import Queue
+from threading import Thread
+from pymavlink import mavutil
+from src.ingress.materializers import NavDuckDBMaterializer
 
 def start_architect(queue):
+    """Start Architect process and ingest packets from queue"""
+    architect = NavDuckDBMaterializer()
+    print("👤 ARCHITECT: System Online. Monitoring Queue...")
+
     try:
-        # PATH CORRECTION:
-        # db is in bin/, mapping is in ingress/
-        architect = NavDuckDBMaterializer(
-            db_path="bin/nav_domain.db",
-            mapping_path="bin/mapping.json"
-        )
-
-        print("👤 ARCHITECT: System Online. Monitoring Vault...")
-
-        while not architect.is_quarantined:
+        while True:
             packet = queue.get()
+            if packet is None:  # Poison pill to shutdown
+                print("💾 ARCHITECT: Shutdown signal received, closing DB...")
+                architect.close()
+                break
             architect.ingest(packet)
 
-            if packet['inode'] % 50 == 0:
-                print(f"🏛️  SILVER COMMIT: Inode {packet['inode']}")
+    except KeyboardInterrupt:
+        print("\n👋 ARCHITECT stopped by user.")
+        architect.close()
 
-    except Exception as e:
-        print(f"❌ ARCHITECT ERROR: {e}")
+def run_ingress(queue):
+    """Simulated Clerk: receives MAVLink packets and pushes to queue"""
+    connection = mavutil.mavlink_connection("udp:127.0.0.1:14551")
+    print("🛰️ Waiting for SITL heartbeat on 14551...")
+    connection.wait_heartbeat()
+    print("💓 Heartbeat received!")
 
-if __name__ == "__main__":
-    shared_queue = Queue()
-
-    clerk_proc = Process(target=run_ingress, args=(shared_queue,))
-    architect_proc = Process(target=start_architect, args=(shared_queue,))
-
-    print("🛰️  SITL TELEMETRY ENGINE: STARTING...")
-
+    inode = 0
     try:
-        architect_proc.start()
-        clerk_proc.start()
-
-        clerk_proc.join()
-        architect_proc.join()
+        while True:
+            msg = connection.recv_match(blocking=True)
+            if not msg:
+                continue
+            inode += 1
+            packet = {
+                "inode": inode,
+                "msg_type": msg.get_type(),
+                "timestamp": time.time(),
+                "data": msg.to_dict()
+            }
+            queue.put(packet)
+            print(f"📦 Clerk captured: inode={inode} | type={packet['msg_type']}")
 
     except KeyboardInterrupt:
-        print("\n\n👋 Shutdown signal received...")
-        shared_queue.cancel_join_thread() # Fixes the threading error you saw
-        clerk_proc.terminate()
-        architect_proc.terminate()
-        print("✅ Pipeline Offline.")
+        print(f"\n📥 Clerk stopped at inode {inode}")
+        queue.put(None)  # shutdown architect
+
+# -----------------------------
+# Main pipeline
+# -----------------------------
+if __name__ == "__main__":
+    packet_queue = Queue()
+    Thread(target=start_architect, args=(packet_queue,), daemon=True).start()
+    run_ingress(packet_queue)

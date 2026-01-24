@@ -21,3 +21,8 @@ class IngressSwitch:
         # 2. System Domain - Extracts health/power state
         if m_type in ['BATTERY_STATUS', 'SYS_STATUS', 'POWER_STATUS']:
             self.sys_decoder.process(msg)
+
+    def route(self, msg_type, data):
+    # PO Diagnostic
+        if msg_type in ["GLOBAL_POSITION_INT", "BATTERY_STATUS"]:
+            print(f"DEBUG: Switch Routing {msg_type} to Materializer. Data Keys: {list(data.keys())}")

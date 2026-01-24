@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import warnings
 
-print("HUD FILE:", __file__)
 # Suppress the pandas downcasting warning for cleaner HUD
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -59,7 +58,6 @@ def run_hud():
             # 2. Force the object type to avoid the downcasting warning
             display_df = df.fillna("---").astype(str)
 
-            print("\n✈️  --- LATEST SYNCHRONIZED TELEMETRY ---")
             print(display_df.to_string(index=False))
 
             # Health Logic
