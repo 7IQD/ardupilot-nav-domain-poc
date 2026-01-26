@@ -1,28 +1,48 @@
+import logging
+
+# Setup logger for the switch
+logger = logging.getLogger("INGRESS_SWITCH")
+logger.setLevel(logging.INFO)
+
 class IngressSwitch:
-    def __init__(self, nav_decoder, sys_decoder):
-        self.nav_decoder = nav_decoder
-        self.sys_decoder = sys_decoder
+    """
+    The Toll Booth for MAVLink messages.
+    Optimized for high-velocity Parquet ingestion.
+    """
+
+    def __init__(self, nav_arch=None, sys_arch=None, att_arch=None):
+        self.nav_arch = nav_arch
+        self.sys_arch = sys_arch
+        self.att_arch = att_arch
+
+        # 🔥 Optimization: Using sets for O(1) lookups
+        self._nav_types = {'GPS_RAW_INT', 'GLOBAL_POSITION_INT', 'LOCAL_POSITION_NED'}
+        self._sys_types = {'BATTERY_STATUS', 'SYS_STATUS', 'POWER_STATUS'}
 
     def route(self, msg, inode, wall_ns):
         """
-        Broadcasting the Umbilical Cord.
-        One Inode is passed to multiple domains to create Horizontal alignment.
+        Attaches identity and broadcasts to the correct domain.
         """
-        # Contract: Attach identity to the object before any domain sees it
-        msg.inode = inode
-        msg.wall_ns = wall_ns
+        try:
+            # 1. Identity Tagging
+            msg.inode = inode
+            msg.wall_ns = wall_ns
 
-        m_type = msg.get_type()
+            # 2. Extract type (Faster than hasattr/getattr combo)
+            try:
+                m_type = msg.get_type()
+            except AttributeError:
+                m_type = msg.msgid
 
-        # 1. Navigation Domain - Extracts spatial state
-        if m_type in ['GPS_RAW_INT', 'GLOBAL_POSITION_INT', 'LOCAL_POSITION_NED']:
-            self.nav_decoder.process(msg)
+            # 3. NAVIGATION DOMAIN
+            if m_type in self._nav_types and self.nav_arch:
+                self.nav_arch.ingest(msg)
+                # logger.info(f"✔ Routed {m_type}") # KEEP COMMENTED FOR STRESS TEST
 
-        # 2. System Domain - Extracts health/power state
-        if m_type in ['BATTERY_STATUS', 'SYS_STATUS', 'POWER_STATUS']:
-            self.sys_decoder.process(msg)
+            # 4. SYSTEM DOMAIN
+            elif m_type in self._sys_types and self.sys_arch:
+                self.sys_arch.ingest(msg)
+                # logger.info(f"✔ Routed {m_type}") # KEEP COMMENTED FOR STRESS TEST
 
-    def route(self, msg_type, data):
-    # PO Diagnostic
-        if msg_type in ["GLOBAL_POSITION_INT", "BATTERY_STATUS"]:
-            print(f"DEBUG: Switch Routing {msg_type} to Materializer. Data Keys: {list(data.keys())}")
+        except Exception as e:
+            logger.error(f"❌ IngressSwitch routing failed: {e}")

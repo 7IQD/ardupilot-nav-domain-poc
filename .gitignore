@@ -1,15 +1,31 @@
-# Python & Environment
+# --- Python & Environment ---
+!**/bin/vault/**/.gitkeep
 __pycache__/
 *.py[cod]
+*$py.class
 .venv/
 venv/
+.env
+.pytest_cache/
 
-# Navigation Domain Vault (Binaries)
+# --- ArduPilot Domain Data (The Vaults) ---
+# We ignore the content, but allow the directories if they contain a .gitkeep
+bin/vault/vault_a/*
+bin/vault/vault_b/*
+bin/vault/vault_c/**/*
+
+# Ignore SQLite leftovers from previous POC versions
 *.db
-*.db.wal
+*.db-journal
+*.db-wal
+
+# --- Logs & Binary Artifacts ---
+logs/*.log
 *.log
 bin/
 src/bin/
 
-# Documentation Scratchpads
+# --- Documentation & Work-in-Progress ---
 docs/Temp-Learning/
+*.tmp
+*.bak

@@ -1,4 +1,4 @@
-from .domain_decoders import NavDecoder, SysHealthDecoder, EstimatorDecoder, DefaultLoggerDecoder
+from .nav_decoder_clerk import NavDecoder, SysHealthDecoder, EstimatorDecoder, DefaultLoggerDecoder
 
 class ActionMap:
     def __init__(self, switch, materializers, active_domains=None):

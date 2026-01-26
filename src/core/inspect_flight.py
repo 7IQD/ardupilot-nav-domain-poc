@@ -1,80 +1,51 @@
-import duckdb
-import pandas as pd
-import os
-import warnings
+import duckdb, os, glob, time, signal, sys, logging
+from logging.handlers import RotatingFileHandler
 
-# Suppress the pandas downcasting warning for cleaner HUD
-warnings.filterwarnings("ignore", category=FutureWarning)
+# --- PORTABLE PATH RESOLUTION ---
+ABS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+BIN_DIR = os.path.join(ABS_ROOT, "bin", "vault")
+LOG_DIR = os.path.join(ABS_ROOT, "logs")
 
-def run_hud():
-    # Canonical pathing
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    db_path = os.path.join(base_dir, "bin", "nav_domain.db")
+log_file = os.path.join(LOG_DIR, "vault_activity.log")
+log_handler = RotatingFileHandler(log_file, maxBytes=5_000_000, backupCount=3)
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(name)-10s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', handlers=[log_handler])
+logger = logging.getLogger("HUD")
 
-    if not os.path.exists(db_path):
-        print(f"❌ DB not found at {db_path}")
-        return
+running = True
+def handle_exit(s, f):
+    logger.info("SIGNAL: Termination received.")
+    global running
+    running = False
 
-    conn = duckdb.connect(db_path)
+signal.signal(signal.SIGINT, handle_exit)
 
-    # 1. Inventory Check (including the new Estimator table)
-    print("\n📊 --- NAVIGATION DOMAIN: VAULT INVENTORY ---")
-    tables = ["nav_gps", "nav_attitude", "nav_estimator", "sys_battery"]
-    for t in tables:
-        try:
-            count = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-            print(f"   {t.ljust(15)}: {count} rows")
-        except:
-            print(f"   {t.ljust(15)}: [MISSING]")
-
-    # 2. The Synchronized HUD Query
-    # We join everything onto the GPS table (our primary spatial reference)
-    query = """
-    SELECT
-        g.inode,
-        g.rel_alt_raw / 1000.0 AS alt_m,
-        ROUND(a.roll_raw, 3) AS roll,
-        ROUND(a.pitch_raw, 3) AS pitch,
-        b.volt_raw / 1000.0 AS batt_v,
-        ROUND(e.velocity_variance, 4) AS vel_var,  -- The Confidence Anchor
-        ROUND(e.pos_horiz_variance, 4) AS pos_var -- The Spatial Anchor
-    FROM nav_gps g
-    ASOF LEFT JOIN nav_attitude a ON g.timestamp_us >= a.timestamp_us
-    ASOF LEFT JOIN sys_battery b  ON g.timestamp_us >= b.timestamp_us
-    ASOF LEFT JOIN nav_estimator e ON g.timestamp_us >= e.timestamp_us
-    ORDER BY g.inode DESC
-    LIMIT 10
-    """
-
+def process_segment(path):
+    filename = os.path.basename(path)
     try:
-        df = conn.execute(query).df()
-        print("\n✈️  --- LATEST SYNCHRONIZED TELEMETRY ---")
-        if df.empty:
-            print("   [No data in vault]")
-        else:
-            # Clean display
-            # Before the print statement:
-            # 1. Fill NaNs with your placeholder string
-            # 2. Force the object type to avoid the downcasting warning
-            display_df = df.fillna("---").astype(str)
-
-            print(display_df.to_string(index=False))
-
-            # Health Logic
-            latest_alt = df.iloc[0]['alt_m']
-            status = "🟢 HEALTHY"
-
-            # Check for EKF drift
-            if df.iloc[0]['pos_var'] != None and df.iloc[0]['pos_var'] > 0.5:
-                status = "🟠 WARNING: EKF DRIFT"
-
-            state = "Airborne" if latest_alt > 0.5 else "Grounded"
-            print(f"\n✅ SYSTEM STATUS: {state} ({latest_alt}m) | {status}")
-
-    except Exception as e:
-        print(f"HUD Error: {e}")
-    finally:
+        conn = duckdb.connect(path, read_only=True)
+        res = conn.execute("SELECT MAX(inode), COUNT(*) FROM nav_gps").fetchone()
         conn.close()
+        if res and res[1] > 0:
+            logger.info(f"INGESTED segment: {filename} | MaxInode: {res[0]} | Packets: {res[1]}")
+        os.remove(path)
+        logger.info(f"PURGED segment: {filename} from vault.")
+    except Exception:
+        pass
+
+def run_relay_hud():
+    logger.info(f"HUD_START: Monitoring {BIN_DIR}")
+    while running:
+        segs = sorted(glob.glob(os.path.join(BIN_DIR, "nav_seg_*.db")))
+        if len(segs) > 1:
+            for p in segs[:-1]: process_segment(p)
+        time.sleep(1)
+
+    # Final sweep
+    time.sleep(0.5)
+    for p in sorted(glob.glob(os.path.join(BIN_DIR, "nav_seg_*.db"))):
+        process_segment(p)
+    logger.info("HUD_STOP: Vault cleared.")
+    sys.exit(0)
 
 if __name__ == "__main__":
-    run_hud()
+    run_relay_hud()
