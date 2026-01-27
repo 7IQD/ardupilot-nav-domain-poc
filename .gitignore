@@ -28,4 +28,5 @@ src/bin/
 # --- Documentation & Work-in-Progress ---
 docs/Temp-Learning/
 *.tmp
-*.bak
+*.bak*.tlog
+*.tlog.raw

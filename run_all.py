@@ -1,75 +1,69 @@
 import os
 import signal
-import sys
 import duckdb
+import time
 from multiprocessing import Event
+
+# Core imports (Assuming your Orchestrator/Architects are ready)
+from src.runner.orchestrator import Orchestrator
+from src.ingress.nav_architect import NavArchitect
+from src.ingress.sys_architect import SysArchitect
 
 DB_PATH = "src/bin/nav_domain.db"
 BIN_DIR = "src/bin"
 
 shutdown_event = Event()
 
-
-def ensure_db():
-    """
-    Ensure DuckDB file is valid.
-    If missing → create fresh DB with required bootstrap tables.
-    """
+def ensure_db(overwrite=False):
+    """Fulfills Overwrite requirement [2026-01-15]"""
     os.makedirs(BIN_DIR, exist_ok=True)
 
-    fresh = not os.path.exists(DB_PATH)
+    if overwrite and os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
 
     conn = duckdb.connect(DB_PATH)
-
-    if fresh:
+    if overwrite or not os.path.exists(DB_PATH):
         conn.execute("""
-            CREATE TABLE meta_ledger (
+            CREATE TABLE IF NOT EXISTS meta_ledger (
                 id INTEGER PRIMARY KEY,
-                last_inode BIGINT
+                last_inode BIGINT,
+                session_start_ns BIGINT
             );
         """)
-        conn.execute("INSERT INTO meta_ledger VALUES (1, 0);")
-        conn.commit()
-
+        conn.execute("INSERT OR IGNORE INTO meta_ledger VALUES (1, 0, ?);", [time.time_ns()])
     conn.close()
 
-
 def handle_shutdown(sig, frame):
-    print("\n👋 Shutdown signal received...")
+    print("\n👋 [SHUTDOWN] Signal received. Closing pipeline...")
     shutdown_event.set()
-
 
 def main():
     signal.signal(signal.SIGINT, handle_shutdown)
-    signal.signal(signal.SIGTERM, handle_shutdown)
 
-    print("🛰️  Starting full SITL telemetry pipeline...")
+    # 1. Prepare State
+    # Set overwrite=True here to fulfill [2026-01-15] for a fresh POC start
+    ensure_db(overwrite=True)
 
-    # 🔒 Single-point DB initialization (critical)
-    ensure_db()
+    # 2. Initialize Components
+    nav = NavArchitect()
+    sys_arch = SysArchitect()
+    orchestrator = Orchestrator(nav, sys_arch)
 
-    # Open DB ONLY AFTER it is guaranteed valid
+    # 3. Restore Inode from DuckDB
     conn = duckdb.connect(DB_PATH)
+    last_inode = conn.execute("SELECT last_inode FROM meta_ledger WHERE id = 1").fetchone()[0]
+    orchestrator.inode_counter = last_inode
+    print(f"🛰️  Engine Ready. Resuming from Inode: {last_inode}")
 
     try:
-        last_inode = conn.execute(
-            "SELECT last_inode FROM meta_ledger WHERE id = 1"
-        ).fetchone()[0]
-        print(f"⚠️  Last inode restored: {last_inode}")
-    except Exception:
-        print("⚠️  No existing Inode found. Starting at 0.")
-
-    print("💓 Heartbeat received!")
-
-    try:
-        while not shutdown_event.is_set():
-            # SITL ingest loop lives elsewhere
-            shutdown_event.wait(0.2)
-
+        # Pass the shutdown_event to your run method if modified,
+        # or rely on the try/finally block
+        orchestrator.run()
     finally:
+        # Save state before exit
+        conn.execute("UPDATE meta_ledger SET last_inode = ? WHERE id = 1", [orchestrator.inode_counter])
         conn.close()
-        print("✅ Full pipeline offline.")
-
+        print(f"✅ State Saved. Final Inode: {orchestrator.inode_counter}")
 
 if __name__ == "__main__":
     main()
