@@ -1,32 +1,21 @@
-# --- Python & Environment ---
-!**/bin/vault/**/.gitkeep
+# Python artifacts
 __pycache__/
 *.py[cod]
-*$py.class
-.venv/
-venv/
+*.class
+venv*/
 .env
-.pytest_cache/
 
-# --- ArduPilot Domain Data (The Vaults) ---
-# We ignore the content, but allow the directories if they contain a .gitkeep
-bin/vault/vault_a/*
-bin/vault/vault_b/*
-bin/vault/vault_c/**/*
+# Navigation Domain Data (The Vault)
+# We exclude the data but keep the directory structure
+bin/vault/
 
-# Ignore SQLite leftovers from previous POC versions
-*.db
-*.db-journal
-*.db-wal
+# ArduPilot / MAVLink logs
+*.tlog
+*.rlog
+*.bin
+mav.log
 
-# --- Logs & Binary Artifacts ---
-logs/*.log
-*.log
-bin/
-src/bin/
-
-# --- Documentation & Work-in-Progress ---
-docs/Temp-Learning/
-*.tmp
-*.bak*.tlog
-*.tlog.raw
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
