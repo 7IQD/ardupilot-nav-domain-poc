@@ -1,16 +1,19 @@
 #!/bin/bash
-# 2026 ArduPilot POC Cleanup Utility
+# Total Mess Clearance for Ardupilot Nav Domain
 
-echo "🧹 Purging all Vaults for a fresh test..."
+echo "🧹 Purging interim artifacts and shadow databases..."
 
-# 1. Clear Staging Areas (A and B)
-rm -f bin/vault/vault_a/*.db
-rm -f bin/vault/vault_b/*.db
+# 1. Kill the Shadow DB (Keep the root one if you wish, or kill both to be safe)
+rm -f src/bin/nav_domain.db
+rm -f bin/nav_domain.db
 
-# 2. Clear the Warehouse (C) - As per overwrite instruction
-rm -f bin/vault/vault_c/*.db
+# 2. Clear out the interim vault folders (Bronze/Silver staging)
+rm -rf bin/vault/vault_a/* bin/vault/vault_b/* bin/vault/vault_c/*
 
-# 3. Clear the Audit Logs
-rm -f logs/vault_activity.log
+# 3. Clear the Dashboard Visual Cache (Targets MARATHON_01 and friends)
+rm -rf bin/vault/dashboard/*
 
-echo "✅ System Reset. Ready for next simulation."
+# 4. Clear the binary ledger from ingress
+rm -f src/ingress/bin/bronze_ledger.bin
+
+echo "✅ Environment Aligned. Ready for fresh Ingestion/Refinery run."

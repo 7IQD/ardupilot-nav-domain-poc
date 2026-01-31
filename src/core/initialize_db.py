@@ -20,7 +20,7 @@ def initialize_vault():
         if conn.execute("SELECT COUNT(*) FROM meta_ledger").fetchone()[0] == 0:
             conn.execute("INSERT INTO meta_ledger VALUES (0);")
 
-        # 3️⃣ Silver Tables
+        # 3️⃣ Silver Tables (Operational State)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS silver.nav_state (
                 ts_boot DOUBLE PRIMARY KEY,
@@ -30,38 +30,27 @@ def initialize_vault():
                 control_mode VARCHAR
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_nav_state_ts_boot ON silver.nav_state(ts_boot)")
 
+        # 4️⃣ Gold Fact Tables (Refinery Targets)
+        # These MUST exist for nav_refinery and sys_refinery to succeed
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS silver.gps_observation (
-                ts_boot DOUBLE PRIMARY KEY,
-                lat DOUBLE, lon DOUBLE, alt_msl DOUBLE,
-                fix_type INTEGER CHECK (fix_type >= 0),
-                satellites_visible INTEGER CHECK (satellites_visible >= 0)
+            CREATE TABLE IF NOT EXISTS fact_nav_precision (
+                mission_id VARCHAR,
+                timestamp VARCHAR,
+                ekf_healthy INTEGER,
+                vel_variance DOUBLE,
+                pos_variance DOUBLE
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_gps_observation_ts_boot ON silver.gps_observation(ts_boot)")
-
-        # 4️⃣ Raw Telemetry (Pre-activation)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS nav_gps (
-                inode INTEGER PRIMARY KEY NOT NULL,
-                timestamp_us BIGINT,
-                lat_raw INTEGER, lon_raw INTEGER, alt_raw INTEGER,
-                rel_alt_raw INTEGER, vx INTEGER, vy INTEGER, vz INTEGER
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_nav_gps_inode ON nav_gps(inode)")
 
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS nav_attitude (
-                inode INTEGER PRIMARY KEY NOT NULL,
-                timestamp_us BIGINT,
-                roll_raw DOUBLE, pitch_raw DOUBLE, yaw_raw DOUBLE,
-                rollspeed_raw DOUBLE, pitchspeed_raw DOUBLE, yawspeed_raw DOUBLE
+            CREATE TABLE IF NOT EXISTS fact_sys_status (
+                mission_id VARCHAR,
+                timestamp VARCHAR,
+                cpu_load DOUBLE,
+                voltage_bat DOUBLE
             )
         """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_nav_attitude_inode ON nav_attitude(inode)")
 
         # 5️⃣ Gold View (Playback Contract)
         conn.execute("""
