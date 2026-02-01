@@ -1,0 +1,21 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.class
+venv*/
+.env
+
+# Navigation Domain Data (The Vault)
+# We exclude the data but keep the directory structure
+bin/vault/
+
+# ArduPilot / MAVLink logs
+*.tlog
+*.rlog
+*.bin
+mav.log
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
