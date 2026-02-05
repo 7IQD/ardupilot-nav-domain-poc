@@ -3,15 +3,15 @@ from src.data_mart_engine.database_manager import DatabaseManager
 
 def load_flight_snapshot() -> Dict[str, Any]:
     db = DatabaseManager()
-    
+
     # Updated queries to find the latest valid (non-zero/non-nan) data
     nav_query = "SELECT timestamp, ekf_healthy, vel_variance, pos_variance FROM fact_nav_precision WHERE vel_variance IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
     sys_query = "SELECT voltage, current, cpu_load FROM fact_sys_status WHERE voltage > 0 ORDER BY timestamp DESC LIMIT 1"
-    
+
     try:
         nav_df = db.query_gold(nav_query)
         sys_df = db.query_gold(sys_query)
-        
+
         if nav_df.empty or sys_df.empty:
             return {"status": "NO_DATA"}
 

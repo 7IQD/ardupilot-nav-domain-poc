@@ -20,7 +20,7 @@ def load_ekf_snapshot(limit: int = 1) -> Dict[str, Any]:
     db = DatabaseManager()
     metrics_str = ", ".join(EKF_METRICS)
     query = f"SELECT {metrics_str} FROM fact_nav_precision ORDER BY timestamp DESC LIMIT {limit}"
-    
+
     try:
         df = db.query_gold(query)
     except Exception as e:

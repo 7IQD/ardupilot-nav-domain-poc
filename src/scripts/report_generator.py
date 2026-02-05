@@ -15,7 +15,7 @@ class ReportGenerator:
 
     def _run_health_query(self, master_path):
         return f"""
-        SELECT 
+        SELECT
             src_sys, src_comp, mavpackettype,
             COUNT(*) AS total_pkts,
             MIN(inode) AS start_inode,
@@ -28,7 +28,7 @@ class ReportGenerator:
         master_path = os.path.join(self.warehouse_dir, f"{domain}_master.parquet")
         if not os.path.exists(master_path):
             return None
-        
+
         df = self.db.query(self._run_health_query(master_path)).to_df()
         report_file = os.path.join(self.report_dir, f"{domain}_health_{int(time.time())}.parquet")
         df.to_parquet(report_file, index=False)
