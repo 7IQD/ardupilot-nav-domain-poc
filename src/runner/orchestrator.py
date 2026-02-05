@@ -1,5 +1,6 @@
 from pymavlink import mavutil
 import sys
+import time
 
 class Orchestrator:
     def __init__(self, nav_arch, sys_arch):
@@ -12,6 +13,9 @@ class Orchestrator:
         self.NAV_GATE = [24, 33, 74, 30, 230, 193]
         self.SYS_GATE = [1, 147, 253]
 
+        # Inode counter for Universal Spine
+        self.inode_counter = 0
+
     def run(self):
         print("🚀 [ENGINE] Starting Ground Run...")
 
@@ -20,9 +24,7 @@ class Orchestrator:
 
         try:
             print("📡 [ENGINE] Waiting for Heartbeat on port 14551...")
-            # Added a 5-second timeout to prevent the permanent lock you saw earlier
             heartbeat = connection.wait_heartbeat(timeout=5)
-
             if not heartbeat:
                 print("⚠️  [ENGINE] No Heartbeat detected. Check SITL/Connection.")
                 return
@@ -31,24 +33,37 @@ class Orchestrator:
 
             while True:
                 msg = connection.recv_match(blocking=True, timeout=1.0)
-
                 if not msg:
                     continue
 
                 m_id = msg.get_msgId()
+                self.inode_counter += 1
 
                 # Routing Logic
                 if m_id in self.NAV_GATE:
-                    self.nav_architect.ingest(msg)
+                    self.nav_architect.record(
+                        msg=msg,
+                        inode=self.inode_counter,
+                        mission_id="default_mission",
+                        src_sys=getattr(msg, 'sysid', 0),
+                        src_comp=getattr(msg, 'compid', 0)
+                    )
                 elif m_id in self.SYS_GATE:
-                    self.sys_architect.ingest(msg)
+                    self.sys_architect.record(
+                        msg=msg,
+                        inode=self.inode_counter,
+                        mission_id="default_mission",
+                        src_sys=getattr(msg, 'sysid', 0),
+                        src_comp=getattr(msg, 'compid', 0)
+                    )
 
         except KeyboardInterrupt:
-            print("\n🛑 [ENGINE] Stopping...")
-            # Critical: This flushes the memory buffer to bin/vault/warehouse/
+            print("\n🛑 [ENGINE] Stopping via User Interrupt...")
+            # Flush memory buffers to Vault B
             self.nav_architect.stop()
             self.sys_architect.stop()
             print("💾 [ENGINE] Data saved to Warehouse. Ready for Refinery.")
+
         except Exception as e:
             print(f"❌ [ENGINE] Runtime Error: {e}")
             sys.exit(1)
