@@ -110,25 +110,55 @@ bin/vault/
                   ▼
        📝 Meta Ledger (last_inode)
 
-
 ## 8. Engine Workflow: Live → Refinery → Dashboard
-8.1 Live Run (Engine-1)
 
-# Clear previous run
+Navigation POC follows a strict pipeline: **Live Capture → Refinery → Dashboard**. This ensures traceable, reproducible, and auditable engineering records.
+
+---
+
+## 8.1 Live Run (Engine-1)
+
+**Step 1: Clear previous run**
+Wipe the warehouse and old database artifacts to start fresh:
+
+```bash
 rm -rf bin/vault/warehouse/*
 rm -f bin/nav_domain.db
-# Start Ingestion
+
+**Step 2: Initialize Vaults & Metadata
+Prepare all staging folders and metadata ledgers:
+
+python3 -m src.core.initialize_db
+
+**Step 3: Start MAVLink ingestion & live run
+Begin routing live MAVLink packets into Vault-B:
+
+```bash
 python3 -m src.runner.main
 
+Note: initialize_db ensures staging folders exist, sets up metadata ledgers (inode tracking, mission IDs), and prepares the system for a clean mission capture. main starts the Orchestrator to route telemetry packets to the respective Architects (Nav/Sys).
+
 8.2 Replay / Refinery (Engine-2)
+
+Refinery reads the warehouse masters (Silver fragments) and generates Gold tables for domain-specific analytics:
+
 python3 -m src.data_mart_engine.refinery.nav_refinery
 python3 -m src.data_mart_engine.refinery.sys_refinery
 
+The Gold tables (fact_nav_precision, fact_sys_status, etc.) are now query-ready, normalized, and aligned for dashboard consumption or evidence queries.
+
 8.3 Dashboard Summary
+
+Generate human-validated dashboards and snapshots for mentor review:
+
 python3 -m src.data_mart_engine.dashboard.domain_summary
 
-## 9. Clean Start Script
-Create a file named reset_engine.sh in the root directory:
+Outputs include summary metrics, plots, PNG snapshots, CSV slices, and markdown notes stored in the Dashboard Vault. No feedback loop is permitted into the refinery; this ensures write-once evidence integrity.
+
+9. Clean Start Script
+
+To reset the analytical environment to Day Zero, create a file named reset_engine.sh in the root directory:
+
 #!/bin/bash
 echo "🧹 Cleaning local analytical environment..."
 
@@ -138,11 +168,28 @@ rm -f ./logs/metadata/inode_ledger.json
 rm -f ./data/queues/*.json
 
 echo "✅ Database and ledgers cleared."
-echo "🚀 Run 'python3 src/runner/orchestrator.py' to begin new capture."
+echo "🚀 Run 'python3 -m src.core.initialize_db' to prepare a fresh mission."
 
+Make it executable:
 Make executable with: chmod +x reset_engine.sh
 
-## 10. Scope & Guardrails
+## 10. Summary Flow
+
+Live Run (Engine-1)
+   │
+   ▼
+Warehouse / Silver Mart
+   │
+   ▼
+Refinery (Engine-2)
+   │
+   ▼
+Gold Tables (query-ready)
+   │
+   ▼
+Dashboard Vault (Snapshots / CSV / Notes)
+
+## 11. Scope & Guardrails
 ✅ Focus: Correctness, Traceability, and Ownership.
 
 ❌ Non-Goals: UI polish, Real-time guarantees, Multi-vehicle fusion, or modifying ArduPilot core.
