@@ -1,57 +1,64 @@
-import threading
-import logging
+import sys
 import os
 import time
-from src.ingress.nav_architect import NavArchitect
-from src.ingress.nav_clerk import NavClerk
-from src.ingress.sys_architect import SysArchitect
-from src.ingress.sys_clerk import SysClerk
+import logging
 
-os.makedirs('logs', exist_ok=True)
+# ==========================================================
+# BOOTSTRAP PATHING
+# ==========================================================
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+src_root = os.path.abspath(os.path.join(current_file_dir, '..'))
+if src_root not in sys.path:
+    sys.path.insert(0, src_root)
+
+try:
+    from data_mart_engine.refinery.nav_refinery import NavRefinery
+    from data_mart_engine.database_manager import DatabaseManager
+except ImportError as e:
+    print(f"CRITICAL: Refinery components missing: {e}")
+    sys.exit(1)
+
+# ==========================================================
+# LOGGING CONFIGURATION
+# ==========================================================
 logging.basicConfig(
-    filename='logs/vault_activity.log',
     level=logging.INFO,
-    format='[%(asctime)s] %(name)-10s %(levelname)-8s %(message)s'
+    format='%(asctime)s - %(levelname)s - [Engine-2] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 
-stop_event = threading.Event()
+class MissionOrchestrator:
+    """
+    ROLE: The Brain.
+    CONCEPT: Managing the transition from Silver (Raw) to Gold (Insight).
+    CONTRACT: Runs refinery cycles on a fixed heartbeat.
+    """
+    def __init__(self, mission_id="MARATHON_POC"):
+        self.mission_id = mission_id
+        self.clerk = DatabaseManager()
+        self.refinery = NavRefinery(mission_id=self.mission_id)
 
-def nav_worker():
-    architect = NavArchitect()
-    clerk = NavClerk()
-    # Example simulation
-    for i in range(500):
-        class Msg:
-            time_boot_ms = 158787099 + i
-            lat, lon, alt = -353632620 + i, 1491652373 + i, 604070 + i
-            relative_alt, vx, vy, vz = 50000 + i, 100 + i, -50 + i, 10 + i
-        architect.ingest(Msg())
-        time.sleep(0.01)
-    architect.stop()
-    logging.info("Nav Architect Finished")
-    clerk.maintenance_loop(stop_event=None, single_pass=True)
-    logging.info("Nav Clerk Final Flush Done")
+        # Ensure Gold folders exist
+        self.clerk.ensure_vault_structure()
 
-def sys_worker():
-    architect = SysArchitect()
-    clerk = SysClerk()
-    # Example simulation
-    for i in range(500):
-        class Msg:
-            time_boot_ms = 158787099 + i
-            voltage, current, remaining = 12600, 2811, 95
-        architect.ingest(Msg())
-        time.sleep(0.01)
-    architect.stop()
-    logging.info("Sys Architect Finished")
-    clerk.maintenance_loop(stop_event=None, single_pass=True)
-    logging.info("Sys Clerk Final Flush Done")
+    def start_marathon(self, cycle_sec=5):
+        """Infinite loop to process new packets."""
+        logging.info(f"🚀 Mission Orchestrator active: {self.mission_id}")
+        logging.info(f"Refining Silver -> Gold every {cycle_sec}s...")
+
+        try:
+            while True:
+                # 1. Run the Refinery Cycle
+                self.refinery.refine_ekf_precision()
+
+                # 2. Wait for next batch of packets from Engine-1
+                time.sleep(cycle_sec)
+        except KeyboardInterrupt:
+            logging.info("🛑 Orchestrator shutting down gracefully.")
+            sys.exit(0)
 
 if __name__ == "__main__":
-    t_nav = threading.Thread(target=nav_worker)
-    t_sys = threading.Thread(target=sys_worker)
-    t_nav.start()
-    t_sys.start()
-    t_nav.join()
-    t_sys.join()
-    print("🏁 Multi-domain Flight Test Simulation Completed")
+    # You can pass a custom name for your marathon here
+    MISSION_NAME = sys.argv[1] if len(sys.argv) > 1 else "MARATHON_TEST_01"
+    orchestrator = MissionOrchestrator(mission_id=MISSION_NAME)
+    orchestrator.start_marathon(cycle_sec=5)

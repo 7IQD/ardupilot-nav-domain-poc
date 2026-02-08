@@ -184,3 +184,6 @@ These are **future extensions**, not current commitments.
 
 **Status:** Navigation POC — Mentor-ready
 **Intent:** Learn, own, and demonstrate systems-grade engineering rigor
+
+> For detailed technical flow, refer to [docs/README_FULL_FLOW.md]
+

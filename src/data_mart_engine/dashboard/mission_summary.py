@@ -1,59 +1,73 @@
-from src.data_mart_engine.database_manager import DatabaseManager
 import pandas as pd
+from src.data_mart_engine.database_manager import DatabaseManager
 
-def run_mission_analysis():
-    db = DatabaseManager()
+class MissionSummary:
+    def __init__(self):
+        self.db = DatabaseManager()
+        # Full domain set now that refineries are synced
+        self.required_tables = ["fact_nav_precision", "fact_system_health", "fact_estimator"]
 
-    # 1. Dynamically identify the mission being analyzed
-    id_query = "SELECT DISTINCT mission_id FROM fact_nav_precision LIMIT 1"
-    id_df = db.query_gold(id_query)
+    def run_analysis(self):
+        print(f"📊 [Dashboard] Generating Mission Health Summary...")
 
-    if id_df is None or id_df.empty:
-        print("📊 No missions found in Gold Vault.")
-        return
+        # 1. Verification
+        existing_tables = self.db.query_gold("SHOW TABLES")['name'].str.lower().tolist()
+        for table in self.required_tables:
+            if table.lower() not in existing_tables:
+                print(f"⚠️  Missing table: {table}. Run refineries first.")
+                return
 
-    target_mission = id_df.iloc[0]['mission_id']
+        # 2. ASOF JOIN (Raw Data)
+        query = """
+            SELECT
+                n.timestamp,
+                n.mission_id,
+                n.ekf_healthy,
+                s.load as raw_load,
+                s.battery_volt as raw_batt,
+                e.xacc, e.yacc, e.zacc
+            FROM fact_nav_precision n
+            ASOF LEFT JOIN fact_system_health s
+                ON n.timestamp >= s.timestamp AND n.mission_id = s.mission_id
+            ASOF LEFT JOIN fact_estimator e
+                ON n.timestamp >= e.timestamp AND n.mission_id = e.mission_id
+            ORDER BY n.timestamp ASC
+        """
 
-    # 2. Comprehensive Query: Capture Status, ID, and Stats
-    query = f"""
-    SELECT
-        COUNT(*) as nav_points,
-        -- Status is 'HEALTHY' only if EVERY frame is healthy (min=1)
-        CASE WHEN MIN(ekf_healthy) = 1 THEN '✅ HEALTHY' ELSE '⚠️ ISSUES DETECTED' END as nav_status,
-        AVG(vel_variance) as avg_var,
-        MIN(timestamp) as start_t,
-        MAX(timestamp) as end_t,
-        (SELECT MAX(voltage) FROM fact_sys_status WHERE mission_id = '{target_mission}' AND voltage > 0) as volt_start,
-        (SELECT MIN(voltage) FROM fact_sys_status WHERE mission_id = '{target_mission}' AND voltage > 0) as volt_end
-    FROM fact_nav_precision
-    WHERE mission_id = '{target_mission}'
-    """
+        report_df = self.db.query_gold(query)
 
-    try:
-        res = db.query_gold(query).iloc[0]
+        if report_df.empty:
+            print("⚠️  No data returned.")
+            return
 
-        # Timing calculation
-        start = pd.to_datetime(res['start_t'])
-        end = pd.to_datetime(res['end_t'])
-        duration = (end - start).total_seconds()
+        # 3. Downstream Scaling (Presentation Logic)
+        total_frames = len(report_df)
 
-        print("\n" + "═"*50)
-        print(f" 🏁 MISSION REPORT: {target_mission} ")
-        print("═"*50)
-        print(f" 🕒 Duration:       {duration:.2f} seconds")
-        print(f" 📡 Nav Status:     {res['nav_status']}")
-        print(f" 📈 Avg Variance:   {res['avg_var']:.6f}")
-        print("-" * 50)
+        # Scale Battery: mV -> V
+        last_batt_raw = report_df['raw_batt'].dropna().iloc[-1] if not report_df['raw_batt'].dropna().empty else 0
+        display_batt = last_batt_raw / 1000.0
 
-        v_start = res['volt_start'] or 0.0
-        v_end = res['volt_end'] or 0.0
-        print(f" 🔋 Battery Start:  {v_start:.2f} V")
-        print(f" 🪫 Battery End:    {v_end:.2f} V")
-        print(f" 📉 Voltage Drop:   {v_start - v_end:.2f} V")
-        print("═"*50 + "\n")
+        # Scale CPU: 0-1000 -> 0-100%
+        avg_load_raw = report_df['raw_load'].mean()
+        display_load = (avg_load_raw / 10.0) if not pd.isna(avg_load_raw) else 0.0
 
-    except Exception as e:
-        print(f"❌ Analysis Error: {e}")
+        ekf_issues = report_df[report_df['ekf_healthy'] == 0].shape[0]
+
+        print("\n" + "="*45)
+        print(f"🚀 MISSION SUMMARY: {report_df['mission_id'].iloc[0]}")
+        print("-" * 45)
+        print(f"📈 Total Nav Frames:   {total_frames}")
+        print(f"💻 Avg CPU Load:       {display_load:.2f}%")
+        print(f"🛡️  EKF Anomalies:      {ekf_issues}")
+        print(f"🔋 Final Battery:      {display_batt:.2f}V")
+
+        # Quick check for Vibration (Estimator Domain)
+        if 'zacc' in report_df.columns:
+            avg_vibe = report_df['zacc'].abs().mean()
+            print(f"🫨  Avg Z-Vibration:    {avg_vibe:.2f} m/s²")
+
+        print("="*45 + "\n")
 
 if __name__ == "__main__":
-    run_mission_analysis()
+    dashboard = MissionSummary()
+    dashboard.run_analysis()

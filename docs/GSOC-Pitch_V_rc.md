@@ -35,7 +35,7 @@ Facilitates expert causal analysis across Navigation, Health, and Safety domains
 ## Architecture Diagram
 
 ```
-              ```
+
                 ┌─────────────┐
                 │ MAVLink SITL│
                 └─────┬──────┘

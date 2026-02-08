@@ -13,43 +13,32 @@ class NavRefinery:
             return
 
         df = pd.read_parquet(self.warehouse_path)
-        if df.empty:
-            print("⚠️ Nav Warehouse data is empty.")
-            return
+        if df.empty: return
 
-        # 🔹 Aligning Mission ID with the System Domain for joined reporting
+        # 🔹 Standardize Mission/Domain
         df['domain'] = 'Nav'
         if 'mission_id' not in df.columns or df['mission_id'].iloc[0] == 'UNKNOWN_MISSION':
             df['mission_id'] = 'MAV_FLIGHT_001'
 
-        print(f"📂 Processing {len(df)} Navigation frames for {df['mission_id'].iloc[0]}...")
-
         refined_df = pd.DataFrame()
 
-        # 1. Timestamp Conversion
+        # 1. Timestamp (Keeping as string per your original logic)
         if 'wall_ns' in df.columns:
             refined_df['timestamp'] = pd.to_datetime(df['wall_ns'], unit='ns').dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
         else:
             refined_df['timestamp'] = pd.Timestamp.now().isoformat()
 
-        refined_df['mission_id'] = df['mission_id']
-        refined_df['domain'] = df['domain']
+        # 2. Metadata
+        refined_df['mission_id'] = df['mission_id'].astype(str)
+        refined_df['domain'] = df['domain'].astype(str)
 
-        # 2. Precision Metrics
-        # Mapping standard ArduPilot/MAVLink variance fields
-        refined_df['vel_variance'] = df['velocity_variance'].fillna(0.0) if 'velocity_variance' in df.columns else 0.0
-        refined_df['pos_variance'] = df['pos_horiz_variance'].fillna(0.0) if 'pos_horiz_variance' in df.columns else 0.0
-
-        # 3. Nav Status Logic (EKF Health)
-        # Threshold: Velocity variance < 0.05 is considered healthy (1), else unhealthy (0)
-        # This bit drives the "✅ HEALTHY" vs "⚠️ ISSUES DETECTED" on the dashboard
+        # 3. Metrics
+        refined_df['vel_variance'] = df['velocity_variance'].fillna(0.0).astype(float) if 'velocity_variance' in df.columns else 0.0
+        refined_df['pos_variance'] = df['pos_horiz_variance'].fillna(0.0).astype(float) if 'pos_horiz_variance' in df.columns else 0.0
         refined_df['ekf_healthy'] = (refined_df['vel_variance'] < 0.05).astype(int)
 
-        print(f"🏗️  Saving {len(refined_df)} Navigation facts to Gold Vault...")
-
-        # Overwrites the database for future testing as requested
+        print(f"🏗️  Saving facts to Gold Vault...")
         self.db.save_gold_fact("fact_nav_precision", refined_df)
 
 if __name__ == "__main__":
-    refinery = NavRefinery()
-    refinery.refine_navigation_data()
+    NavRefinery().refine_navigation_data()

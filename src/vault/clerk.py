@@ -16,6 +16,8 @@ class Clerk:
         """Sterilizes staging and warehouse per [2026-01-15]."""
         print("🧹 Clerk is clearing Vault B and Warehouse...")
         for folder in [self.vault_b, self.warehouse]:
+            if not os.path.exists(folder):
+                continue
             for f in os.listdir(folder):
                 path = os.path.join(folder, f)
                 if os.path.isfile(path):
@@ -30,17 +32,17 @@ class Clerk:
         Enforces ordering by the Universal Spine (inode).
         """
         master_path = os.path.join(self.warehouse, f"{domain}_master.parquet")
-        fragment_pattern = os.path.join(self.vault_b, f"{domain}_raw_*.parquet")
+        prefix = f"{domain}_raw_"
+        fragment_pattern = os.path.join(self.vault_b, f"{prefix}*.parquet")
 
         # Check for presence of fragments manually to avoid DuckDB glob errors
-        fragments_exist = any(f.startswith(f"{domain}_raw_") for f in os.listdir(self.vault_b))
+        fragments_exist = any(f.startswith(prefix) for f in os.listdir(self.vault_b))
         if not fragments_exist:
             print(f"ℹ️  No new fragments for {domain}. Skipping.")
             return
 
         print(f"📦 Consolidating {domain} fragments into {master_path}", end=' ', flush=True)
 
-        # Heartbeat dots
         stop_heartbeat = False
         def heartbeat():
             while not stop_heartbeat:
@@ -51,7 +53,7 @@ class Clerk:
         t.start()
 
         try:
-            # Use DuckDB for high-performance sorting and merging
+            # High-performance merge and deduplication via DuckDB
             if not os.path.exists(master_path):
                 # Fresh master: Sort by inode to ensure spine integrity
                 duckdb.query(f"""
@@ -74,7 +76,7 @@ class Clerk:
                         ORDER BY inode ASC
                     ) TO '{temp_path}' (FORMAT 'PARQUET')
                 """)
-                os.replace(temp_path, master_path)  # Atomic swap
+                os.replace(temp_path, master_path) # Atomic swap
         finally:
             stop_heartbeat = True
             t.join()
@@ -84,8 +86,8 @@ class Clerk:
         """Finalizes the mission by committing all domains and clearing Vault B."""
         print("\n🏁 [CLERK] Finalizing run: Consolidating warehouse...")
 
-        # Process domains defined in Orchestrator gates
-        for domain in ['nav', 'sys']:
+        # Symmetric processing for all four domains: nav, sys, com, est
+        for domain in ['nav', 'sys', 'com', 'est']:
             try:
                 self.commit(domain)
             except Exception as e:

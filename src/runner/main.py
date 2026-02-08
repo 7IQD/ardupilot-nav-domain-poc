@@ -5,12 +5,14 @@ import os
 from src.runner.orchestrator import Orchestrator
 from src.ingress.nav_architect import NavArchitect
 from src.ingress.sys_architect import SysArchitect
+from src.ingress.com_architect import ComArchitect
+from src.ingress.est_architect import EstimatorArchitect
 from src.vault.clerk import Clerk
-from src.scripts.report_generator import ReportGenerator  # Added for post-run analytics
+from src.scripts.report_generator import ReportGenerator  # Post-run analytics
 
 def main():
     print("\n" + "="*50)
-    print("🛰️  ArduPilot Nav-Domain POC | Marathon Mode")
+    print("🛰️  ArduPilot Multi-Domain POC | Marathon Mode")
     print("="*50)
 
     # 1️⃣ Initialize Clerk (The Librarian)
@@ -29,9 +31,11 @@ def main():
     # 3️⃣ Setup Architects (Bronze Layer)
     nav_arch = NavArchitect(limit=50)
     sys_arch = SysArchitect(limit=25)
+    com_arch = ComArchitect(limit=25)
+    est_arch = EstimatorArchitect(limit=25)  # New Estimator domain
 
     # 4️⃣ Initialize Engine (The Universal Spine)
-    engine = Orchestrator(nav_arch, sys_arch)
+    engine = Orchestrator(nav_arch, sys_arch, com_arch, est_arch)
 
     try:
         print("\n🚀 [ENGINE] Starting Ground Run...")
@@ -57,7 +61,7 @@ def main():
             # 6️⃣ Generate Mission Report (The Automatic Debrief)
             print("\n📊 [REPORT] Generating Post-Run Health Metrics...")
             rg = ReportGenerator()
-            rg.generate_all()
+            rg.generate_all()  # Includes NAV, SYS, COM, EST
 
             print("✅ Warehouse Updated & Reported. System Safe for Shutdown.")
         except Exception as finalize_error:
