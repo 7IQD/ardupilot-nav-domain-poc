@@ -7,33 +7,37 @@ class ComRefinery:
         self.db = DatabaseManager()
         self.warehouse_path = "bin/vault/warehouse/com_master.parquet"
 
-    def refine_communication_data(self):
+    def refine_comms_data(self):
         if not os.path.exists(self.warehouse_path):
-            print(f"❌ Com Warehouse file missing: {self.warehouse_path}")
+            print(f"❌ Comms Warehouse file missing: {self.warehouse_path}")
             return
 
         df = pd.read_parquet(self.warehouse_path)
-        if df.empty: return
+        if df.empty:
+            return
 
-        print(f"📂 Processing {len(df)} Comms frames...")
         refined_df = pd.DataFrame()
 
-        # 1. Timestamp & Metadata
-        if 'wall_ns' in df.columns:
-            refined_df['timestamp'] = pd.to_datetime(df['wall_ns'], unit='ns').dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
-        else:
-            refined_df['timestamp'] = pd.Timestamp.now().isoformat()
+        # 🔹 Metadata
+        df['domain'] = 'Comms'
+        if 'mission_id' not in df.columns or df['mission_id'].iloc[0] == 'UNKNOWN_MISSION':
+            df['mission_id'] = 'MAV_FLIGHT_001'
+        refined_df['mission_id'] = df['mission_id'].astype(str)
+        refined_df['domain'] = df['domain'].astype(str)
 
-        refined_df['mission_id'] = df['mission_id'].astype(str) if 'mission_id' in df.columns else "MAV_FLIGHT_001"
-        refined_df['domain'] = 'COM'
+        # 🔹 Communication metrics
+        refined_df['frame_id'] = df['frame_id'] if 'frame_id' in df.columns else None
+        refined_df['status'] = df['status'] if 'status' in df.columns else None
+        refined_df['latency_ms'] = df['latency_ms'].fillna(0.0).astype(float) if 'latency_ms' in df.columns else 0.0
+        refined_df['success'] = df['success'].fillna(0).astype(int) if 'success' in df.columns else 0
 
-        # 2. Link Quality Metrics
-        refined_df['rssi'] = df['rssi'].fillna(0).astype(int) if 'rssi' in df.columns else 0
-        refined_df['remrssi'] = df['remrssi'].fillna(0).astype(int) if 'remrssi' in df.columns else 0
-        refined_df['drop_rate'] = df['fixed'].fillna(0).astype(float) if 'fixed' in df.columns else 0.0
+        # 🔹 Fix for DuckDB string compatibility (suppress Pandas4Warning)
+        for col in refined_df.select_dtypes(include='string').columns:
+            refined_df[col] = refined_df[col].astype('string')
 
-        print(f"🏗️  Saving Communication facts...")
+        print(f"🏗️  Saving Communication facts to Gold Vault...")
         self.db.save_gold_fact("fact_comms_status", refined_df)
 
+
 if __name__ == "__main__":
-    ComRefinery().refine_communication_data()
+    ComRefinery().refine_comms_data()

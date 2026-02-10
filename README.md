@@ -1,189 +1,53 @@
-# ArduPilot Nav-Mart
-**Multi-Domain Analytics & Evidence Platform (Navigation POC)**
-
-Navigation-domain Proof of Concept for a **non-intrusive, evidence-driven observability pipeline** over ArduPilot SITL / logs.
-
-This repository demonstrates a thin but complete vertical slice of a proposed **GSoC 2026** project: capturing, aligning, analyzing, and *freezing* navigation telemetry (GPS / EKF) to support causal reasoning — **without modifying ArduPilot core behavior**.
+# **Navigation Domain POC — Multi-Domain Analytics**
 
 ---
 
-## 1. Executive Summary (WHY)
+## The Concept
 
-Modern autopilot systems expose rich telemetry but lack a **reproducible, reviewable evidence trail** for engineering insight.
-This project converts transient telemetry into a **professional engineering record** by combining:
-
-- Deterministic data ingestion
-- Domain-aware analytical pipelines
-- Human-validated evidence capture
-
-The Navigation domain serves as the **reference implementation**.
+In a standard SITL run, telemetry streams arrive as mixed MAVLink packets, including Navigation, System, and Sensor data. The packets come asynchronously and at different rates, all combined as a single stream providing a snapshot of the drone system status. The aim is to capture all MAVLink packets **without dropping any bytes** and organize them into structured **Domain Data Lakes** (time-aligned files), allowing developers to analyze each domain individually and see how domains interact with each other.
 
 ---
 
-## 2. Research & Vision Context (Design Intent)
+## The Problem
 
-### 2.1 Horizontal Architecture (The Platform)
-
-Nav-Mart is designed as **shared infrastructure** capable of hosting multiple analytical domains without changes to core ingress or security logic.
-
-**Global Services**
-- **Ingress Hub**: Single upstream MAVLink listener with auto-detection and routing
-- **Core Services**: Mission tokens, Git-hash traceability, database lifecycle
-- **Runner**: Orchestrates live runs or historical replays
-
-### 2.2 Vertical Partitions (Domain Slots)
-
-- **Navigation (Active)**: EKF / GPS causality POC
-- **Power / Vibration / System (Future)**: Reserved, unimplemented
-
-> This separation ensures that domain expansion does not destabilize the platform.
+Current SITL runs provide a complete snapshot of all telemetry streams from Navigation, System, and Sensor domains in a mixed, asynchronous manner. Developers cannot easily examine how a single stream is performing or correlate it with other domains. This makes it difficult to evaluate estimator behavior, tune sensor parameters, or assess system performance across a flight.
 
 ---
 
-## 3. Data Integrity & Scientific Traceability
+## The Solution
 
-To ensure reproducibility, the platform enforces a **Zero-Touch Signing Contract**:
+The problem is addressed by capturing the incoming streams of packets. Once captured with almost zero loss, we perform **re-alignment in a staggered, two-stage approach**.
 
-- **Mission ID**: Unique timestamp + UUID per run
-- **Git Hash Binding**: Every persisted record is signed with the current commit hash
-- **Immutable Artifacts**: No in-place mutation of analytical outputs
+### First Stage
 
-This guarantees that *every insight is traceable to code, data, and time*.
+During the **initial run**, all incoming MAVLink packets are captured and separated by domain: Navigation → `nav.parquet`, System → `system.parquet`, Sensor → `sensor.parquet`. This allows developers to view each domain independently and understand basic behavior.
 
----
+### Second Stage
 
-## 4. Layered Domain Mart Model (WHAT)
-
-Each domain processes telemetry through a strict pipeline:
-
-1. **Ingress**
-   MAVLink ingestion from SITL or logs
-
-2. **Entity Layer**
-   Mapping raw messages into domain-specific Python dataclass contracts
-
-3. **Weaving Layer**
-   Temporal alignment using **ASOF joins** to correlate asynchronous telemetry
-
-4. **Mart Layer**
-   Persistence into DuckDB / Parquet for high-performance analytical queries
-
-This model enables both **intra-system** and **inter-system** analysis without redesign.
+During the **second run**, every packet is assigned a **Time-ID** using the file inode and a high-resolution timestamp. This temporal alignment prepares the data for detailed intra-domain and inter-domain analysis. Developers can now correlate events across domains, evaluate estimator performance, tune sensor parameters, and improve overall system behavior.
 
 ---
 
-## 5. Engine Architecture (HOW)
+## Benefit
 
-The system is intentionally split into two engines for ownership clarity.
+This system makes it easier for developers to work with SITL telemetry by providing clear, structured data for analysis. Developers can:
 
-### 5.1 Engine-1 — Ingest & Refinery
-
-**Responsibilities**
-- MAVLink capture
-- Domain tagging
-- Silver / Gold data generation
-
-**Key Properties**
-- Stateless processing
-- Append-only writes
-- No visualization logic
-
-Engine-1 answers: *“What happened?”*
+* Analyze each domain individually and compare one domain against another to understand interactions and performance.
+* Examine cross-domain correlations to spot issues or dependencies.
+* Analyze runs in a repeatable way, reducing manual work and guesswork.
+* Use simple queries to explore performance, fine-tune parameters, and validate estimators.
 
 ---
-
-### 5.2 Engine-2 — Dashboard & Evidence
-
-**Responsibilities**
-- Domain-specific dashboards
-- Human-in-the-loop validation
-- Evidence capture into the Dashboard Vault
-
-Engine-2 answers: *“What matters?”*
-
 ---
 
-## 6. Vault System (Evidence Contract)
+## Telemetry Snapshots
 
-The platform uses a **three-tier vault model**:
-
-bin/vault/
-├── warehouse/ # Raw, append-only telemetry
-├── gold/ # Refined, query-ready domain marts
-└── dashboard/ # Human-validated evidence artifacts
-
-
-### 6.1 Dashboard Vault (Write-Once Evidence)
-
-The **Dashboard Vault** stores:
-- PNG snapshots of analytical views
-- CSV slices of underlying data
-- Markdown notes with human tags
-
-This layer transforms dashboards from *ephemeral displays* into **auditable engineering artifacts**.
-
-> No feedback loops into the refinery are permitted.
-
----
-
-## 7. Navigation Domain POC (Deliverable)
-
-The Navigation POC demonstrates:
-
-- EKF ↔ GPS temporal causality
-- Reproducible replay
-- Evidence capture for mentor review
-
-It serves as:
-- A **technical proof**
-- A **learning scaffold**
-- A **template for future domains**
-
----
-
-## 8. Scope & Non-Goals (Guardrails)
-
-To prevent scope creep, the following are **explicitly out of scope**:
-
-- ❌ UI polish or web dashboards
-- ❌ Real-time guarantees
-- ❌ Multi-vehicle fusion
-- ❌ Autonomous feedback into ArduPilot
-- ❌ Domains beyond Navigation
-
-This POC prioritizes **correctness, traceability, and ownership** over breadth.
-
----
-
-## 9. Mentor Evaluation Lens
-
-From a mentor’s perspective, this repository demonstrates:
-
-- Clear separation of concerns
-- Evidence-based engineering practice
-- Reproducible experimentation
-- Incremental, reviewable progress
-
-Every artifact answers three questions:
-1. *What code produced this?*
-2. *What data supports it?*
-3. *When and why was it captured?*
-
----
-
-## 10. Roadmap (Post-GSoC)
-
-- Activate additional domains
-- Cross-domain correlation
-- Fleet-level benchmarking
-- Structured report generation
-
-These are **future extensions**, not current commitments.
-
----
-
-**Status:** Navigation POC — Mentor-ready
-**Intent:** Learn, own, and demonstrate systems-grade engineering rigor
-
-> For detailed technical flow, refer to [docs/README_FULL_FLOW.md]
-
+![Initial_Set-up](images/initial_set-up.PNG)
+![Domain Data](images/domain_data.PNG)
+![Domain Data Parquet](images/domain_data_parquet.PNG)
+![DuckDB Tables](images/duckdb_tables.PNG)
+![Heartbeat](images/hearbeat.PNG)
+![Mission Closed](images/mission_closed.PNG)
+![Raw Domain Truth](images/raw_domain_truth.PNG)
+![Raw Stream](images/raw_stream.PNG)
+![Refinery Run](images/refinery_run.PNG)
