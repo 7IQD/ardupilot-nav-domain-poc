@@ -38,16 +38,26 @@ This system makes it easier for developers to work with SITL telemetry by provid
 * Use simple queries to explore performance, fine-tune parameters, and validate estimators.
 
 ---
----
 
 ## Telemetry Snapshots
 
-![Initial_Set-up](images/initial_set-up.PNG)
-![Domain Data](images/domain_data.PNG)
-![Domain Data Parquet](images/domain_data_parquet.PNG)
-![DuckDB Tables](images/duckdb_tables.PNG)
-![Heartbeat](images/hearbeat.PNG)
-![Mission Closed](images/mission_closed.PNG)
-![Raw Domain Truth](images/raw_domain_truth.PNG)
-![Raw Stream](images/raw_stream.PNG)
-![Refinery Run](images/refinery_run.PNG)
+---
+
+## Telemetry Snapshots in Sequence of Flow
+
+## Telemetry Snapshots in Sequence of Flow
+## Telemetry Snapshots in Sequence of Flow
+
+![Raw Stream](images/raw_stream.PNG)          # raw MAVLink packets
+![Initial Set-up](images/initial_set_up.PNG)  # SITL initial setup
+![Heartbeat](images/hearbeat.PNG)            # periodic system heartbeat
+![Mission Closed](images/mission_closed.PNG) # mission end
+![Raw Domain Truth](images/raw_domain_truth.PNG)  # domain_master.parquet files separated by domain
+![Domain Data Parquet](images/domain_data_parquet.PNG)  # pre-refinement Parquet snapshot
+![Domain Data](images/domain_data.PNG)       # preview of fact tables
+![Refinery Run](images/refinery_run.PNG)     # refinement in action
+![DuckDB Tables](images/duckdb_tables.PNG)   # final DB tables
+
+
+
+
