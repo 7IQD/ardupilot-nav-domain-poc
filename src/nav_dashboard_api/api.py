@@ -1,11 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+import duckdb
 import random
-import uvicorn
 
 app = FastAPI()
 
-# 1. FIX CORS (Allows Svelte to talk to Python)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,13 +12,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. THE LIVE DATA ROUTE (Must match /api/nav/live)
+# ---- CONNECT TO DUCKDB ----
+DB_PATH = "/home/ni/ardupilot-nav-domain-poc/bin/vault/warehouse_df/nav_dflog_domain.db"
+conn = duckdb.connect(DB_PATH, read_only=True)
+
+# ---- LIVE MOCK DATA ----
 @app.get("/api/nav/live")
 async def get_live_telemetry():
-    """
-    Returns live telemetry.
-    Matches the NavStore interface in Svelte.
-    """
     return {
         "telemetry": {
             "drift": round(random.uniform(0.8, 1.4), 2),
@@ -28,24 +27,24 @@ async def get_live_telemetry():
             "alt_drift": 0.05,
             "phase": "MISSION_ACTIVE",
             "sensors": {"gps": 1, "imu": 1, "baro": 1}
-        },
-        "pipeline": {
-            "ingress_hz": 50,
-            "ingest_ms": 3,
-            "vault_ok": True
-        },
-        "logs": [
-            {"stage": "VAULT", "msg": "Syncing EKF state to Parquet", "latency": 0.8}
-        ]
+        }
     }
 
-# 3. DATABASE OVERWRITE (For your future testing)
-@app.post("/api/test/overwrite-db")
-async def overwrite_db():
-    # Insert your DuckDB/Parquet wipe logic here
-    print("CRITICAL: Overwriting database for fresh test cycle.")
-    return {"status": "SUCCESS", "detail": "Database cleared."}
+# ---- REAL DUCKDB DOMAIN VIEW ----
+@app.get("/api/nav/domain")
+async def get_domain_data(view: str = Query("ui_nav_drone_monitor")):
+    try:
+        result = conn.execute(f"SELECT * FROM {view} LIMIT 500")
+        rows = result.fetchall()
+        columns = [desc[0] for desc in result.description]
 
-if __name__ == "__main__":
-    # Runs on port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        data = [dict(zip(columns, row)) for row in rows]
+
+        return {
+            "view": view,
+            "row_count": len(data),
+            "telemetry": data
+        }
+
+    except Exception as e:
+        return {"error": str(e)}

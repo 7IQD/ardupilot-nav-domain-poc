@@ -4,68 +4,86 @@ import duckdb
 import sys
 import threading
 import time
+import logging
+
+# --- LOGGER CONFIGURATION ---
+# Provides a clean, timestamped record for debugging missions.
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler("clerk_mission.log"), # Persistent log file
+        logging.StreamHandler(sys.stdout)          # Console output
+    ]
+)
+logger = logging.getLogger("Clerk")
 
 class Clerk:
     def __init__(self):
-        self.vault_b = 'bin/vault/vault_b'
-        self.warehouse = 'bin/vault/warehouse'
+        self.root_dir = "/home/ni/ardupilot-nav-domain-poc"
+        self.vault_b = os.path.join(self.root_dir, 'bin/vault/vault_b')
+        self.warehouse = os.path.join(self.root_dir, 'bin/vault/warehouse')
+
         os.makedirs(self.vault_b, exist_ok=True)
         os.makedirs(self.warehouse, exist_ok=True)
+        logger.debug(f"Clerk initialized. Vault B: {self.vault_b}")
 
     def reset(self):
         """Sterilizes staging and warehouse per [2026-01-15]."""
-        print("🧹 Clerk is clearing Vault B and Warehouse...")
+        logger.warning("🚨 [CLEANING] Sterilizing Vault B and Warehouse...")
         for folder in [self.vault_b, self.warehouse]:
-            if not os.path.exists(folder):
-                continue
+            if not os.path.exists(folder): continue
             for f in os.listdir(folder):
                 path = os.path.join(folder, f)
-                if os.path.isfile(path):
-                    os.remove(path)
-                elif os.path.isdir(path):
-                    shutil.rmtree(path)
-        print("✅ Clerk reset successful.")
+                try:
+                    if os.path.isfile(path): os.remove(path)
+                    elif os.path.isdir(path): shutil.rmtree(path)
+                except Exception as e:
+                    logger.error(f"Failed to delete {path}: {e}")
+        logger.info("✅ Clerk reset successful.")
 
-    def commit(self, domain):
+    def commit(self, domain, source_type="sitl"):
         """
-        Merges fragments into the master file using DuckDB.
-        Enforces ordering by the Universal Spine (inode).
+        Consolidates fragments with full traceability.
+        source_type: 'sitl' or 'dflog'
         """
-        master_path = os.path.join(self.warehouse, f"{domain}_master.parquet")
+        # Debugger friendly pathing: specific mission files
+        master_path = os.path.join(self.warehouse, f"{domain}_{source_type}_master.parquet")
         prefix = f"{domain}_raw_"
         fragment_pattern = os.path.join(self.vault_b, f"{prefix}*.parquet")
 
-        # Check for presence of fragments manually to avoid DuckDB glob errors
-        fragments_exist = any(f.startswith(prefix) for f in os.listdir(self.vault_b))
-        if not fragments_exist:
-            print(f"ℹ️  No new fragments for {domain}. Skipping.")
+        # Explicit fragment detection
+        fragments = [f for f in os.listdir(self.vault_b) if f.startswith(prefix)]
+        if not fragments:
+            logger.debug(f"Domain [{domain}]: No fragments found. Skipping.")
             return
 
-        print(f"📦 Consolidating {domain} fragments into {master_path}", end=' ', flush=True)
+        logger.info(f"📦 [COMMIT] Domain: {domain} | Mission: {source_type} | Count: {len(fragments)}")
 
+        # Heartbeat for long-running DuckDB tasks
         stop_heartbeat = False
         def heartbeat():
             while not stop_heartbeat:
-                sys.stdout.write('.')
-                sys.stdout.flush()
-                time.sleep(0.5)
+                time.sleep(1)
+                logger.debug(f"... Consolidating {domain} ...")
+
         t = threading.Thread(target=heartbeat)
         t.start()
 
         try:
-            # High-performance merge and deduplication via DuckDB
+            con = duckdb.connect(':memory:') # Use clean memory for each commit
             if not os.path.exists(master_path):
-                # Fresh master: Sort by inode to ensure spine integrity
-                duckdb.query(f"""
+                logger.info(f"🆕 Creating new master: {master_path}")
+                con.execute(f"""
                     COPY (
                         SELECT * FROM read_parquet('{fragment_pattern}')
                         ORDER BY inode ASC
                     ) TO '{master_path}' (FORMAT 'PARQUET')
                 """)
             else:
-                # Append to existing master: Deduplicate and re-sort
+                logger.info(f"🔄 Appending to master: {master_path}")
                 temp_path = f"{master_path}.tmp"
-                duckdb.query(f"""
+                con.execute(f"""
                     COPY (
                         SELECT * FROM (
                             SELECT * FROM read_parquet('{master_path}')
@@ -76,28 +94,32 @@ class Clerk:
                         ORDER BY inode ASC
                     ) TO '{temp_path}' (FORMAT 'PARQUET')
                 """)
-                os.replace(temp_path, master_path) # Atomic swap
+                os.replace(temp_path, master_path)
+        except Exception as e:
+            logger.error(f"❌ [CRITICAL] DuckDB Fail on {domain}: {e}")
+            raise
         finally:
             stop_heartbeat = True
             t.join()
-            print(" ✅")
 
-    def finalize_run(self):
-        """Finalizes the mission by committing all domains and clearing Vault B."""
-        print("\n🏁 [CLERK] Finalizing run: Consolidating warehouse...")
+    def finalize_run(self, is_real_flight=False):
+        """
+        Finalizes the mission.
+        is_real_flight: True (dflog) | False (sitl)
+        """
+        mission = "dflog" if is_real_flight else "sitl"
+        logger.info(f"🏁 [CLERK] Starting {mission.upper()} Finalization Suite")
 
-        # Symmetric processing for all four domains: nav, sys, com, est
         for domain in ['nav', 'sys', 'com', 'est']:
             try:
-                self.commit(domain)
+                self.commit(domain, source_type=mission)
             except Exception as e:
-                print(f"\n⚠️  Error consolidating {domain}: {e}")
+                logger.error(f"Failed {domain} commit: {e}")
 
-        # Clear Vault B fragments after successful commit
-        print("🧹 Clearing staging area (Vault B)...")
+        # Final cleanup with verification
+        logger.info("🧹 [CLEANUP] Clearing Vault B staging area...")
         for f in os.listdir(self.vault_b):
             if f.endswith(".parquet"):
                 os.remove(os.path.join(self.vault_b, f))
 
-        print("✅ Vault B cleared. Warehouse ready for next mission.")
-        print("🏁 [CLERK] Warehouse is now locked and ready.")
+        logger.info(f"✅ Mission {mission.upper()} finalized. Warehouse locked.")
