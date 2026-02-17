@@ -4,53 +4,77 @@ import sys
 import time
 
 # --- DYNAMIC PATH INJECTION ---
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../"))
-PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../"))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))  # src/runner
+ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../"))  # project root
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
-if SRC_ROOT not in sys.path: sys.path.insert(0, SRC_ROOT)
-if PROJECT_ROOT not in sys.path: sys.path.insert(0, PROJECT_ROOT)
+# --- IMPORTS USING SRC PACKAGE PREFIX ---
+from src.vault.clerk_df import ClerkDF
+from src.weaving.ingest_df.nav_df_architect import NavDFArchitect
+from src.weaving.ingest_df.est_df_architect import EstDFArchitect
+from src.weaving.ingest_df.com_df_architect import ComDFArchitect
+from src.weaving.ingest_df.sys_df_architect import SysDFArchitect
+from src.weaving.ingest_df.power_df_architect import PowerDFArchitect
 
-from vault.clerk_df import ClerkDF
-from weaving.ingest_df.nav_df_architect import NavDFArchitect
-
-# Paths
-BIN_SOURCE = os.path.join(PROJECT_ROOT, "bin/vault/df_source")
+# --- BIN SOURCE ---
+BIN_SOURCE = os.path.join(ROOT, "bin/vault/df_source")
 TARGET_BIN = os.path.join(BIN_SOURCE, "clean_20260213_133342.BIN")
+
+# --- DOMAIN MAP ---
+DOMAINS = {
+    "nav": NavDFArchitect,
+    "est": EstDFArchitect,
+    "com": ComDFArchitect,
+    "sys": SysDFArchitect,
+    "power": PowerDFArchitect
+}
+
+def user_confirm(domain_name):
+    """Ask user whether to process a domain"""
+    while True:
+        resp = input(f"Process {domain_name.upper()} domain? (y/n): ").strip().lower()
+        if resp in ("y", "n"):
+            return resp == "y"
+
+def process_domain(domain_name, architect_cls):
+    print(f"\n🏁 Starting {domain_name.upper()} domain processing...")
+    if not os.path.exists(TARGET_BIN):
+        print(f"❌ BIN file missing: {TARGET_BIN}")
+        return False
+    arch = architect_cls(TARGET_BIN)
+    return arch.process_flight()
 
 def main():
     total_start = time.time()
-    # ENHANCEMENT: Multi-domain support list
-    DOMAINS = ["nav"]
+    print(f"🌐 Starting Multi-Domain DF Pipeline | Mission: {os.path.basename(TARGET_BIN)}\n")
 
-    print(f"🏁 Starting DF Waterfall Pipeline | Mission: {os.path.basename(TARGET_BIN)}")
-
-    # 1️⃣ [PASS 1] PURGE
+    # 1️⃣ RESET
     clerk = ClerkDF()
-    clerk.reset()
+    if user_confirm("reset vault & warehouse"):
+        clerk.reset()
 
-    # 2️⃣ [PASS 2] EXTRACTION
-    if not os.path.exists(TARGET_BIN):
-        print(f"❌ Source .BIN missing: {TARGET_BIN}")
-        return
+    # 2️⃣ DOMAIN PROCESSING LOOP
+    processed_domains = []
+    for domain_name, architect_cls in DOMAINS.items():
+        if user_confirm(domain_name):
+            success = process_domain(domain_name, architect_cls)
+            if success:
+                processed_domains.append(domain_name)
+        else:
+            print(f"⏭️  Skipping {domain_name.upper()} domain...")
 
-    ext_start = time.time()
-    # Architect processes the BIN and dumps shards into vault_b
-    architect = NavDFArchitect(TARGET_BIN)
-    success = architect.process_flight()
+    # 3️⃣ CONSOLIDATION
+    if processed_domains:
+        print("\n📦 Consolidating domains into warehouse_df...")
+        clerk.finalize_run(domains=processed_domains)
+    else:
+        print("⚠️  No domains processed; skipping consolidation.")
 
-    if not success:
-        print("❌ Extraction failed. Aborting.")
-        return
-    print(f"⏱️  Extraction Duration: {time.time() - ext_start:.2f}s")
-
-    # 3️⃣ [PASS 3] CONSOLIDATION
-    cons_start = time.time()
-    # The Clerk now handles multi-domain consolidation using DuckDB
-    clerk.finalize_run(domains=DOMAINS)
-    print(f"⏱️  Consolidation Duration: {time.time() - cons_start:.2f}s")
-
-    print(f"🏁 Pipeline Complete. Total Time: {time.time() - total_start:.2f}s")
+    print(f"\n🏁 Pipeline Complete | Total Time: {time.time() - total_start:.2f}s", flush=True)
+    print(f"✅ Warehouse Masters are located in: {clerk.warehouse_df}", flush=True)
+    print("\n✅ df_main.py has finished generating master parquets.", flush=True)
+    print("📢 Next action: Create DuckDB views using create_views.py", flush=True)
 
 if __name__ == "__main__":
     main()

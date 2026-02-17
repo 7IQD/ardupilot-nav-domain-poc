@@ -1,65 +1,55 @@
 #!/usr/bin/env python3
-import duckdb
 import os
+import duckdb
+import pandas as pd
 
 # --- PATHS ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../"))
 WAREHOUSE_DF = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df")
-MASTER_PARQUET = os.path.join(WAREHOUSE_DF, "nav_df_master.parquet")
-VAULT_DB = os.path.join(WAREHOUSE_DF, "nav_df_vault.db")
+VAULT_DB = os.path.join(WAREHOUSE_DF, "drone_df_views.db")
 
-def build_vault_views():
-    """Builds Forensic Views using verified Parquet schema."""
+# --- CONNECT TO AGNOSTIC VAULT ---
+con = duckdb.connect(VAULT_DB)
 
-    # Instruction [2026-01-15]: Overwrite for testing
-    if os.path.exists(VAULT_DB):
-        print(f"🧹 Overwriting existing vault: {VAULT_DB}")
-        os.remove(VAULT_DB)
+# --- DOMAIN LIST ---
+DOMAINS = ["fact_navigation", "fact_estimator", "fact_system", "fact_communication", "fact_power"]
 
-    con = duckdb.connect(VAULT_DB)
+def list_domains():
+    """Return available domains in the vault."""
+    return [d for d in DOMAINS]
 
-    # Create the base view from Parquet
-    con.execute(f"CREATE VIEW nav_all AS SELECT * FROM read_parquet('{MASTER_PARQUET}');")
+def fetch_domain(domain_name, limit=1000):
+    """Fetch sample data from a domain view."""
+    if domain_name not in DOMAINS:
+        raise ValueError(f"Unknown domain: {domain_name}")
+    query = f"SELECT * FROM {domain_name} LIMIT {limit}"
+    return con.execute(query).fetchdf()
 
-    # Verified Time Logic: Use TimeUS (microseconds) -> Seconds
-    TIME_SQL = "TimeUS / 1000000.0"
+def fetch_analytical_view(view_name, limit=1000):
+    """Fetch sample data from analytical perspectives."""
+    query = f"SELECT * FROM {view_name} LIMIT {limit}"
+    return con.execute(query).fetchdf()
 
-    # 1. UI Telemetry View (Standard Nav Monitoring)
-    con.execute(f"""
-        CREATE VIEW ui_telemetry AS
-        SELECT
-            {TIME_SQL} AS time_sec,
-            mavpackettype,
-            Alt, Roll, Pitch, Yaw,
-            DesRoll, DesPitch, DesYaw -- Control Performance
-        FROM nav_all
-        WHERE mavpackettype IN ('ATT', 'AHR2', 'CTUN')
-        ORDER BY time_sec ASC;
-    """)
-
-    # 2. AI Forensic View (Vibration & EKF Health)
-    # Uses PN/PE/PD (North/East/Down position) from XKF1 for drift analysis
-    con.execute(f"""
-        CREATE VIEW ai_vibe_diagnostics AS
-        SELECT
-            {TIME_SQL} AS time_sec,
-            mavpackettype,
-            -- Vertical Jitter Calculation
-            STDDEV(Alt) OVER (ORDER BY TimeUS ROWS BETWEEN 5 PRECEDING AND 5 FOLLOWING) AS alt_jitter,
-            -- Attitude Magnitude
-            SQRT(POWER(Roll, 2) + POWER(Pitch, 2)) AS tilt_magnitude,
-            -- Innovation/Health (from XKF1 bindings)
-            Health
-        FROM nav_all
-        WHERE mavpackettype IN ('ATT', 'XKF1')
-        ORDER BY time_sec ASC;
-    """)
-
-    row_count = con.execute("SELECT COUNT(*) FROM nav_all").fetchone()[0]
-    print(f"✅ Vault Built Successfully.")
-    print(f"📊 Indexed {row_count} messages with 64-column depth.")
-    con.close()
-
+# --- SIMPLE CLI FOR TESTING ---
 if __name__ == "__main__":
-    build_vault_views()
+    print("🚁 Drone DF UI | Available Domains:")
+    for d in list_domains():
+        print(f"  - {d}")
+
+    # Fetch first 5 rows from each domain
+    for d in list_domains():
+        print(f"\n📄 Sample from {d}:")
+        df = fetch_domain(d, limit=5)
+        print(df)
+
+    # Optional: Sample analytical views
+    ANALYTICAL_VIEWS = ["view_telemetry_attitude", "view_perspective_delta",
+                        "view_system_vibe_stress", "view_power_health"]
+    for v in ANALYTICAL_VIEWS:
+        print(f"\n📊 Sample from {v}:")
+        try:
+            df = fetch_analytical_view(v, limit=5)
+            print(df)
+        except Exception as e:
+            print(f"⚠️ Could not fetch view {v}: {e}")
