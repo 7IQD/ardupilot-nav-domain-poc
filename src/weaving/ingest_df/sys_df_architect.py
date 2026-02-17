@@ -5,19 +5,23 @@ import time
 import pandas as pd
 from pymavlink.DFReader import DFReader_binary
 
-# --- DYNAMIC PATH INJECTION ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../../"))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-# --- BASE CLASS FOR ARCHITECT ---
-class LegacyArchitect:
-    def __init__(self, limit=5000):
-        self.buffer = []
+class SysDFArchitect:
+    """SYS domain ingestion into parquet shards"""
+    def __init__(self, bin_path, limit=5000, vault_b=None):
+        self.bin_path = bin_path
         self.limit = limit
+        self.vault_b = vault_b or os.path.join(ROOT, "bin/vault/vault_b")
+        os.makedirs(self.vault_b, exist_ok=True)
+        self.buffer = []
+        # SYS whitelist
+        self.whitelist = ["VIBE", "CTUN", "IMU", "CPU", "TEMP"]
 
-    def record(self, msg, inode, mission_id, src_sys, src_comp):
+    def record(self, msg, inode):
         d = msg.to_dict()
         d['inode'] = inode
         d['wall_ns'] = time.time_ns()
@@ -29,16 +33,16 @@ class LegacyArchitect:
             self.flush()
 
     def flush(self):
-        pass
-
-# --- NAV DOMAIN ARCHITECT ---
-class NavDFArchitect(LegacyArchitect):
-    def __init__(self, bin_path, limit=5000, vault_b=None):
-        super().__init__(limit=limit)
-        self.bin_path = bin_path
-        self.vault_b = vault_b or os.path.join(ROOT, "bin/vault/vault_b")
-        os.makedirs(self.vault_b, exist_ok=True)
-        self.whitelist = ['ATT', 'POS', 'GPS', 'XKF1', 'NKF1', 'AHR2', 'CTUN', 'MAG']
+        if not self.buffer:
+            return
+        df = pd.DataFrame(self.buffer)
+        shard_name = f"sys_shard_{time.time_ns()}.parquet"
+        target_path = os.path.join(self.vault_b, shard_name)
+        try:
+            df.to_parquet(target_path, index=False)
+            self.buffer = []
+        except Exception as e:
+            print(f"❌ Failed to write shard: {e}")
 
     def process_flight(self):
         if not os.path.exists(self.bin_path):
@@ -56,33 +60,20 @@ class NavDFArchitect(LegacyArchitect):
                 break
             raw_count += 1
             if msg.get_type() in self.whitelist:
-                self.record(msg, raw_count, "FDR_FLIGHT_LOCKED", 1, 1)
+                self.record(msg, raw_count)
                 captured_count += 1
                 if captured_count % 2000 == 0:
-                    print(f"  🔹 Processed {raw_count} raw / {captured_count} NAV messages...")
+                    print(f"  🔹 Processed {raw_count} raw / {captured_count} SYS messages...")
 
         self.flush()
-        print(f"\n🛡️ NAV INTEGRITY REPORT")
+        print(f"\n🛡️ SYS INTEGRITY REPORT")
         print(f"Total Raw Packets Read : {raw_count}")
-        print(f"NAV Packets Captured   : {captured_count}")
+        print(f"SYS Packets Captured   : {captured_count}")
         print(f"Coverage Ratio         : {(captured_count/raw_count)*100:.2f}%")
         print(f"\n✅ Extraction complete. {captured_count} messages sharded to {self.vault_b}")
         return True
 
-    def flush(self):
-        if not self.buffer:
-            return
-        df = pd.DataFrame(self.buffer)
-        shard_name = f"nav_shard_{time.time_ns()}.parquet"
-        target_path = os.path.join(self.vault_b, shard_name)
-        try:
-            df.to_parquet(target_path, index=False)
-            self.buffer = []
-        except Exception as e:
-            print(f"❌ Failed to write shard: {e}")
-
-# --- RUN AS SCRIPT ---
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        arch = NavDFArchitect(sys.argv[1])
+        arch = SysDFArchitect(sys.argv[1])
         arch.process_flight()
