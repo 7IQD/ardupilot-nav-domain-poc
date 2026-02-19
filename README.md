@@ -18,13 +18,17 @@ Current SITL runs provide a complete snapshot of all telemetry streams from Navi
 
 The problem is addressed by capturing the incoming streams of packets. Once captured with almost zero loss, we perform **re-alignment in a staggered, two-stage approach**.
 
-### First Stage
+### First Stage-Engine-1
 
 During the **initial run**, all incoming MAVLink packets are captured and separated by domain: Navigation → `nav.parquet`, System → `system.parquet`, Sensor → `sensor.parquet`. This allows developers to view each domain independently and understand basic behavior.
 
-### Second Stage
+### Second Stage-Engine-2
 
 During the **second run**, every packet is assigned a **Time-ID** using the file inode and a high-resolution timestamp. This temporal alignment prepares the data for detailed intra-domain and inter-domain analysis. Developers can now correlate events across domains, evaluate estimator performance, tune sensor parameters, and improve overall system behavior.
+
+### Third Stage-Engine-3
+
+During the SITL refinement run, data is captured and segregated for each domain and stored in master parquet files in the DuckDB database. Additionally, to obtain the drone perspective, the **DataFlash (.BIN) file is cleaned to remove noise, duplicates, and corrupt entries, and converted to a structured format through a separate DF run**. Both data sources — `domain_sitl_master.parquet` and `domain_df_master.parquet` — are then exposed as API services for scorecard generation and domain and multi-domain causal analysis through the domain dashboard.
 
 ---
 
@@ -44,7 +48,6 @@ This system makes it easier for developers to work with SITL telemetry by provid
 ---
 
 ## Telemetry Snapshots in Sequence of Flow
-
 ## Telemetry Snapshots in Sequence of Flow
 ## Telemetry Snapshots in Sequence of Flow
 

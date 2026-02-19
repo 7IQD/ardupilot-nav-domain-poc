@@ -59,3 +59,5 @@ print("✅ View created: view_est_master")
 # --- Close connection ---
 conn.close()
 print("\n✅ All fact tables and views are now created. Ready for API/UI consumption.")
+print("💡 Next step: run `nav_dashboard_api/mission_forensic_api.py` to start the forensic dashboard.")
+

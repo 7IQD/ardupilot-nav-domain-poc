@@ -1,18 +1,26 @@
-# Data and DB files
-*.parquet
-*.db
-*.tlog
+# --- Raw logs (skip these) ---
 *.bin
-bin/vault/
-bin/*.db
+*.tlog
+bin/vault/df_source/
 
-# Logs and Baselines
+# --- Keep processed vaults and warehouse masters tracked ---
+# vault shards & warehouse Parquet files will be tracked
+!bin/vault/vault_a/
+!bin/vault/vault_b/
+!bin/vault/vault_c/
+!bin/vault/warehouse_df/
+
+# --- Temporary / reports ---
+bin/vault/reports/*.parquet
+
+# --- Logs and baselines ---
 *.txt
 *.log
 
-# Python environment
+# --- Python environment ---
 __pycache__/
 venv*/
 .vscode/
-docs/Temp-Learning/
+
+# --- Docs temp files ---
 docs/Temp-Learning/
