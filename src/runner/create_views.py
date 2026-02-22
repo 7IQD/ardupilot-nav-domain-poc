@@ -2,62 +2,63 @@
 import os
 import duckdb
 
-# --- Paths ---
+# --- 1. PATH CONFIGURATION ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 WAREHOUSE_DF = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df")
 VAULT_DB = os.path.join(WAREHOUSE_DF, "drone_df_views.db")
 
-# --- Connect to DuckDB ---
-conn = duckdb.connect(VAULT_DB)
+def main():
+    print(f"🏗️  Starting DuckDB Optimized Projection Layer")
+    print(f"📁 Source Warehouse: {WAREHOUSE_DF}")
+    print(f"🗄️  Target DB: {VAULT_DB}")
 
-# --- Map of parquet masters ---
-MASTER_MAP = {
-    "nav": "nav_df_master.parquet",
-    "sys": "sys_df_master.parquet",
-    "power": "power_df_master.parquet",
-    "com": "com_df_master.parquet",
-    "est": "est_df_master.parquet",
-}
+    # --- 2. REFRESH FACT TABLES ---
+    MASTER_MAP = {
+        "nav": "nav_df_master.parquet",
+        "sys": "sys_df_master.parquet",
+        "power": "power_df_master.parquet",
+        "com": "com_df_master.parquet",
+        "est": "est_df_master.parquet",
+    }
 
-# --- 1️⃣ Create base fact tables ---
-for domain, parquet_file in MASTER_MAP.items():
-    parquet_path = os.path.join(WAREHOUSE_DF, parquet_file)
-    if os.path.exists(parquet_path):
-        fact_table = f"fact_{domain if domain != 'com' else 'communication'}"
-        conn.execute(f"""
-            CREATE OR REPLACE TABLE {fact_table} AS
-            SELECT * FROM read_parquet('{parquet_path}')
-        """)
-        print(f"✅ Fact Table: {fact_table}")
+    conn = duckdb.connect(VAULT_DB)
 
-# --- 2️⃣ Analytical Views ---
-# NAV / SYS / POWER
-conn.execute("CREATE OR REPLACE VIEW ui_nav_drone_monitor AS SELECT * FROM fact_nav")
-conn.execute("CREATE OR REPLACE VIEW view_system_vibe_stress AS SELECT * FROM fact_sys")
-conn.execute("CREATE OR REPLACE VIEW view_power_health AS SELECT * FROM fact_power")
+    for domain, parquet_file in MASTER_MAP.items():
+        parquet_path = os.path.join(WAREHOUSE_DF, parquet_file)
+        if os.path.exists(parquet_path):
+            table_name = f"fact_{domain if domain != 'com' else 'communication'}"
+            conn.execute(f"""
+                CREATE OR REPLACE TABLE {table_name} AS
+                SELECT * FROM read_parquet('{parquet_path}')
+            """)
+            print(f"✅ Fact Table Refreshed: {table_name}")
+        else:
+            print(f"⚠️  Missing Master Parquet: {parquet_file}")
 
-# COM (Safe Mode)
-cols = [row[0] for row in conn.execute("DESCRIBE fact_communication").fetchall()]
-rssi_logic = "COALESCE(RSSI, RemRSSI)" if "RSSI" in cols else "NULL"
-noise_logic = "Noise" if "Noise" in cols else "NULL"
+    # --- 3. OPTIMIZED BATCH VIEWS (Terminal UI / Performance Fix) ---
+    print("\n🔭 Materializing Optimized Views for Terminal UI...")
 
-conn.execute(f"""
-    CREATE OR REPLACE VIEW view_comm_link_quality AS
-    SELECT
-        timestamp_sec,
-        {rssi_logic} AS signal_strength,
-        {noise_logic} AS noise_floor,
-        mavpackettype
-    FROM fact_communication
-""")
-print("✅ View created: view_comm_link_quality (Safe Mode)")
+    # Strategy:
+    # 1. LIMIT 2000 rows per view to avoid JSON/DOM bloat.
+    # 2. Optional: ORDER BY timestamp or mission_id if recent/relevant data is preferred.
 
-# EST View (Optional: direct mapping)
-conn.execute("CREATE OR REPLACE VIEW view_est_master AS SELECT * FROM fact_est")
-print("✅ View created: view_est_master")
+    VIEWS = {
+        "ui_nav_drone_monitor": "SELECT * FROM fact_nav LIMIT 2000",
+        "view_system_vibe_stress": "SELECT * FROM fact_sys LIMIT 2000",
+        "view_power_health": "SELECT * FROM fact_power LIMIT 2000",
+        "view_est_master": "SELECT * FROM fact_est LIMIT 2000",
+        "view_comm_link_quality": "SELECT * FROM fact_communication LIMIT 2000"
+    }
 
-# --- Close connection ---
-conn.close()
-print("\n✅ All fact tables and views are now created. Ready for API/UI consumption.")
-print("💡 Next step: run `nav_dashboard_api/mission_forensic_api.py` to start the forensic dashboard.")
+    for view_name, query in VIEWS.items():
+        try:
+            conn.execute(f"CREATE OR REPLACE VIEW {view_name} AS {query}")
+            print(f"🚀 Optimized View Created: {view_name}")
+        except Exception as e:
+            print(f"⚠️  Failed to create {view_name}: {e}")
 
+    conn.close()
+    print("\n🏁 Aperture Control Complete. Restart FastAPI to observe performance improvement.")
+
+if __name__ == "__main__":
+    main()

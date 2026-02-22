@@ -1,0 +1,28 @@
+.wire-container {
+    background-color: rgba(0,0,0,0.4);
+    border-radius: 1rem;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 10px;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse; /* newest at bottom */
+}
+
+.log-line {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    transition: background 0.2s;
+}
+
+.log-line.bronze { color: #f59e0b; }   /* amber */
+.log-line.silver { color: #10b981; }   /* green */
+.log-line.vault  { color: #f43f5e; }   /* red */
+.log-line:hover { background: rgba(255,255,255,0.05); }
+
+.time { width: 50px; }
+.stage { width: 50px; font-weight: bold; }
+.msg { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; }
+.latency { width: 50px; text-align: right; }

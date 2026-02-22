@@ -1,0 +1,180 @@
+# Data-Mart-Engine- Domain Model
+
+## 1. The Plan (NAV Domain Only)
+
+### Objective
+
+Certify normal navigation behavior by comparing live or replay runs against statistically derived reference envelopes, under declared operating modes.
+
+### Scope (strict)
+
+* Domain: NAV only
+* Platform: ArduPilot (for now)
+* Data source: Gold Mart (SITL-derived NAV metrics)
+* Modes: normal, endurance, stress
+* Phases: declared, not inferred
+* Math: mean, stddev, z-score
+* Storage: DuckDB
+* Artifacts: JSON + tables
+
+### Non-goals (explicit)
+
+* No ML
+* No dashboards
+* No cross-domain arbitration
+* No auto-tuning
+* No heuristic scoring
+
+---
+
+# 2. Sequence & Activities (Human View)
+
+Think of this as a checklist, not a pipeline.
+
+## Phase 0 — Declare NAV Authority
+
+### Activity
+
+* Define what NAV measures
+* Define how NAV judges
+
+### Outputs
+
+* nav.manifesto.json
+* nav.metrics.json
+* nav.roe.json
+
+Nothing runs without these.
+
+---
+
+## Phase 1 — Calibrate NAV (Baseline Creation)
+
+### Activity
+
+1. Run calibrated SITL flights
+2. Tag each run with a NAV mode
+3. Aggregate metrics by phase
+
+### Inputs
+
+* Gold Mart NAV data
+* 5 runs per mode
+
+### Outputs
+
+* Per-run phase stats
+* Reference envelopes (mean, stddev)
+
+---
+
+## Phase 2 — Certify Reference Profiles
+
+### Activity
+
+* Build one reference profile per:
+* metric
+* phase
+* mode
+* ROE
+
+### Outputs
+
+* nav.ref.common.json
+* DuckDB domain_reference_profile
+
+This is gold. Rarely changes.
+
+---
+
+## Phase 3 — Evaluate Live / Replay Run
+
+### Activity
+
+1. Aggregate NAV metrics for the run
+2. Compare against reference profiles
+3. Apply ROE
+4. Produce scorecard
+
+### Outputs
+
+* Deviation rows
+* NAV scorecard
+
+---
+
+## Phase 4 — Report (NAV’s Only Voice)
+
+### Activity
+
+* Emit PASS / FAIL per mode
+* Emit stability score
+
+NAV does not decide system outcome.
+It only reports NAV truth.
+
+---
+
+# 3. Canonical Data Flow (Truth Never Loops Back)
+
+SITL
+↓
+Gold Mart (NAV refined truth)
+↓
+NAV Aggregation (per run, per phase)
+↓
+Reference Model Builder (calibration only)
+↓
+NAV Reference Profiles
+↓
+Comparison Engine
+↓
+NAV Scorecard
+
+## Important rules:
+
+* Reference profiles are never updated by live runs
+* Gold Mart is read-only
+* Comparison is stateless
+
+---
+
+# 4. Canonical File & Artifact Structure
+
+This is where KISS really matters.
+
+```
+nav/
+├── manifesto/
+│   ├── nav.manifesto.json
+│   ├── nav.metrics.json
+│   ├── nav.phases.json
+│   └── nav.roe.json
+│
+├── calibration/
+│   ├── runs/
+│   │   ├── normal/
+│   │   │   ├── run_001.json
+│   │   │   └── ...
+│   │   ├── endurance/
+│   │   └── stress/
+│   │
+│   └── nav.ref.common.json
+│
+├── observation/
+│   ├── nav.run.<run_id>.json
+│   └── nav.run.<run_id>.duckdb
+│
+├── duckdb/
+│   ├── nav_core.db
+│   └── nav_mart.db
+│
+└── scorecard/
+    └── nav.scorecard.<run_id>.json
+```
+
+JSON = authoritative artifacts
+DuckDB = query engine
+
+---
+
