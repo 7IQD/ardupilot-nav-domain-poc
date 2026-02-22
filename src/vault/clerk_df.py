@@ -1,74 +1,49 @@
-#!/usr/bin/env python3
 import os
 import shutil
-import duckdb
-import sys
-
-# --- DYNAMIC PATH ---
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../"))
 
 class ClerkDF:
-    """
-    Orchestrates shard consolidation and warehouse management.
-    High-speed deduplication using DuckDB ensures the latest packet per inode.
-    """
-
     def __init__(self):
-        self.vault_b = os.path.join(PROJECT_ROOT, "bin/vault/vault_b")
-        self.warehouse_df = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df")
+        # Resolve paths relative to the project root
+        self.root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        self.vault_b = os.path.join(self.root, "bin/vault/vault_b")
+        self.warehouse_df = os.path.join(self.root, "bin/vault/warehouse_df")
+
+        # Ensure directories exist
         os.makedirs(self.vault_b, exist_ok=True)
         os.makedirs(self.warehouse_df, exist_ok=True)
 
     def reset(self):
-        """Wipes Vault B and Warehouse DF for a fresh run."""
-        print("🧹 [Clerk] Resetting Vault B and Warehouse DF...")
-        for folder in [self.vault_b, self.warehouse_df]:
-            if os.path.exists(folder):
-                for f in os.listdir(folder):
-                    path = os.path.join(folder, f)
-                    if os.path.isfile(path):
-                        os.remove(path)
-                    elif os.path.isdir(path):
-                        shutil.rmtree(path)
-        print("✅ [Clerk] Reset complete.")
+        """
+        SURGICAL RESET: Only clears the staging shards (Vault B).
+        Used by the refinery to clean up after a successful mission injection.
+        """
+        if os.path.exists(self.vault_b):
+            for filename in os.listdir(self.vault_b):
+                file_path = os.path.join(self.vault_b, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"⚠️ [Clerk] Failed to delete {file_path}: {e}")
+        print("✅ [Clerk] Staging area (Vault B) reset. Warehouse remains intact.")
 
-    def finalize_run(self, domains=["nav"]):
-        """Consolidates domain shards into warehouse masters."""
-        for domain in domains:
-            self._consolidate(domain)
+    def clear_warehouse(self):
+        """
+        HARD RESET: Wipes the finalized masters (Warehouse).
+        Call this manually or from df_main if you want a totally fresh start.
+        """
+        if os.path.exists(self.warehouse_df):
+            for filename in os.listdir(self.warehouse_df):
+                file_path = os.path.join(self.warehouse_df, filename)
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+        print("🚨 [Clerk] Warehouse masters wiped.")
 
-    def _consolidate(self, domain):
-        """Internal method to merge domain shards deterministically."""
-        master_path = os.path.join(self.warehouse_df, f"{domain}_df_master.parquet")
-        fragments = [
-            os.path.join(self.vault_b, f)
-            for f in os.listdir(self.vault_b)
-            if f.startswith(f"{domain}_") and f.endswith(".parquet")
-        ]
-
-        if not fragments:
-            print(f"⚠️  [Clerk] No fragments found for domain: {domain}")
-            return
-
-        print(f"📦 [Clerk] Merging {len(fragments)} {domain} shards via DuckDB...")
-
-        try:
-            # High-speed deduplication: keep most recent wall_ns for each inode
-            con = duckdb.connect(':memory:')
-            fragment_list = ",".join([f"'{f}'" for f in fragments])
-            con.execute(f"""
-                COPY (
-                    SELECT * FROM read_parquet([{fragment_list}])
-                    QUALIFY ROW_NUMBER() OVER (PARTITION BY inode ORDER BY wall_ns DESC) = 1
-                    ORDER BY inode ASC
-                ) TO '{master_path}' (FORMAT 'PARQUET')
-            """)
-
-            # Clean up individual shards
-            for f in fragments:
-                os.remove(f)
-
-            print(f"✅ [Clerk] {domain.upper()} Master Locked: {master_path}")
-        except Exception as e:
-            print(f"❌ [Clerk] Failed to consolidate {domain}: {e}")
+    def finalize_run(self, domains=None):
+        """
+        LEGACY/FALLBACK: Performs a raw merge without Mission ID.
+        In your new architecture, df_refinery.py replaces the need for this.
+        """
+        print("📦 [Clerk] Warning: finalize_run() called. This skips Mission ID refinement.")
