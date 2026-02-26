@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from src.data_mart_engine.database_manager import DatabaseManager
+from data_mart_engine.database_manager import DatabaseManager
 
 class EstRefinery:
     def __init__(self):

@@ -1,56 +1,73 @@
 #!/usr/bin/env python3
-import os, sys, time
+"""
+df_main.py
+Primary Entry Point for DataFlash Ingress Pipeline
+"""
 
-# --- DYNAMIC PATH INJECTION ---
+import os
+import sys
+import argparse
+
+# --- PERMANENT PATH FIX ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../"))
-
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+SRC_DIR = os.path.dirname(SCRIPT_DIR)
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
 # --- IMPORTS ---
-from src.vault.clerk_df import ClerkDF
-from src.weaving.ingest_df.nav_df_architect import NavDFArchitect
-from src.weaving.ingest_df.est_df_architect import EstDFArchitect
-from src.weaving.ingest_df.com_df_architect import ComDFArchitect
-from src.weaving.ingest_df.sys_df_architect import SysDFArchitect
-from src.weaving.ingest_df.power_df_architect import PowerDFArchitect
-
-# --- DOMAIN MAP ---
-DOMAINS = {
-    "nav": NavDFArchitect,
-    "est": EstDFArchitect,
-    "com": ComDFArchitect,
-    "sys": SysDFArchitect,
-    "power": PowerDFArchitect
-}
+try:
+    from weaving.ingest_df.df_action_map import DFActionMap
+    from weaving.ingest_df.df_mav_ingress_architect import DFIngressMavArchitect
+    from vault.clerk_df import ClerkDF
+except ImportError as e:
+    print(f"❌ Critical Error: Could not find project modules. {e}")
+    sys.exit(1)
 
 def main():
-    total_start = time.time()
-    BIN_SOURCE = os.path.join(ROOT, "bin/vault/df_source")
-    TARGET_BIN = os.path.join(BIN_SOURCE, "clean_20260213_133342.BIN")
+    parser = argparse.ArgumentParser(description="ArduPilot DataFlash Ingress Runner")
+    parser.add_argument("bin_path", help="Path to the .BIN flight log")
+    args = parser.parse_args()
 
-    print(f"🌐 Starting Multi-Domain DF Extraction | BIN: {os.path.basename(TARGET_BIN)}\n")
-
-    # 1️⃣ RESET (Optional)
+    # Initialize Clerk
     clerk = ClerkDF()
-    if input("Reset vault_b staging area? (y/n): ").strip().lower() == "y":
-        clerk.reset() # This should only clear vault_b, not the warehouse
 
-    # 2️⃣ DOMAIN PROCESSING (Architecture Phase)
-    processed_domains = []
-    for domain_name, architect_cls in DOMAINS.items():
-        if input(f"Process {domain_name.upper()}? (y/n): ").strip().lower() == "y":
-            print(f"🏁 Extracting {domain_name.upper()} to shards...")
-            arch = architect_cls(TARGET_BIN)
-            success = arch.process_flight()
-            if success:
-                processed_domains.append(domain_name)
+    print("=" * 60)
+    print("🧹 Stage 1: Clearing Staging Areas...")
 
-    # 3️⃣ HANDSHAKE GAP (Crucial Change)
-    print("\n✅ Extraction Phase Complete.")
-    print("📢 Shards are waiting in vault_b/.")
-    print("🚀 NEXT STEP: Run 'python3 bin/df_refinery.py' to inject Mission ID and consolidate.")
+    # FIXED: Using the actual method name found via grep
+    if hasattr(clerk, 'reset_staging'):
+        clerk.reset_staging()
+    else:
+        # Fallback if names change again
+        print("⚠️  Warning: reset_staging not found, attempting manual clear...")
+        if os.path.exists(clerk.vault_b):
+            import shutil
+            shutil.rmtree(clerk.vault_b)
+            os.makedirs(clerk.vault_b, exist_ok=True)
+
+    print(f"🚀 Stage 2: Ingress from {os.path.basename(args.bin_path)}...")
+    print("=" * 60)
+
+    # Main Processing Loop
+    for domain in DFActionMap.get_domains():
+        msg_types = DFActionMap.get_msg_types(domain)
+
+        if not msg_types:
+            continue
+
+        print(f"📡 Processing: {domain: <6} | Signals: {msg_types}")
+
+        architect = DFIngressMavArchitect(
+            bin_path=args.bin_path,
+            domain_key=domain,
+            msg_types=msg_types
+        )
+
+        architect.process_flight()
+
+    print("=" * 60)
+    print("✅ Stage 3: Ingress Pipeline Complete.")
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()

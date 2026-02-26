@@ -6,9 +6,11 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+# Import your Domain Controller (The Judge)
+from dashboard.nav.nav_controller import NavController
+
 app = FastAPI()
 
-# --- Enable CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,88 +19,89 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ROBUST PATH LOGIC ---
+# --- PATH CONFIG ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "../../"))
-WAREHOUSE_DF = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df")
-DB_PATH = os.path.join(WAREHOUSE_DF, "drone_df_views.db")
-MISSION_VAULT = os.path.join(PROJECT_ROOT, "bin/vault/missions")
+DB_PATH = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df/drone_df_views.db")
 
-print(f"--- SERVER STARTING ---")
-print(f"DEBUG: Database Path: {DB_PATH}")
+# --- Helper to determine layer type ---
+def detect_layer(obj_name: str):
+    if obj_name.startswith("fact_") and obj_name.endswith("_events"):
+        return "SILVER_FACT"
+    elif obj_name.startswith("fact_") and obj_name.endswith("_state"):
+        return "GOLD_STATE"
+    elif obj_name.startswith("view_"):
+        return "GOLD_STATE"
+    else:
+        return "UNKNOWN"
 
-# --- List available parquet domains ---
-@app.get("/api/domains")
-async def list_domains():
-    if not os.path.exists(WAREHOUSE_DF):
-        return {"domains": []}
-    files = [f.replace(".parquet", "") for f in os.listdir(WAREHOUSE_DF) if f.endswith('.parquet')]
-    return {"domains": sorted(files)}
+# --- 1. INTELLIGENCE ENDPOINT (The Verdict) ---
+@app.get("/api/nav/verdict")
+async def get_nav_verdict(mission_id: str = Query(...)):
+    """Triggers the NavController to run the ActionMap and return the PASS/FAIL verdict."""
+    try:
+        ctrl = NavController(mission_id)
+        result = ctrl.run_audit()
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
-# --- Serve domain data via DuckDB (SECURE & FILTERED) ---
+# --- 2. FORENSIC ENDPOINT (The Silver Audit) ---
+@app.get("/api/nav/audit")
+async def get_nav_audit(mission_id: str = Query(...)):
+    """Fetch raw, sparse event data (Silver) to compare against reconstructed state."""
+    con = duckdb.connect(DB_PATH, read_only=True)
+    try:
+        query = """
+            SELECT mission_time AS TimeUS, RelHomeAlt, RelOriginAlt, inode
+            FROM fact_nav_events
+            WHERE mission_id = ?
+            ORDER BY mission_time ASC
+        """
+        df = con.execute(query, [mission_id]).df()
+        data = df.replace({np.nan: None}).to_dict(orient="records")
+        return {"mission_id": mission_id, "layer": "SILVER_AUDIT", "telemetry": data}
+    finally:
+        con.close()
+
+# --- 3. DOMAIN DATA ENDPOINT (Dynamic UI / Gold State) ---
 @app.get("/api/domain")
-async def get_domain_data(
-    view: str = Query(...),
-    mission_id: str | None = Query(None)
-):
-    print(f"\nDEBUG: UI Request: {view} | Filter: {mission_id}")
-
+async def get_domain_data(view: str = Query(...), mission_id: str | None = Query(None)):
     if not os.path.exists(DB_PATH):
         return JSONResponse(status_code=404, content={"error": "Database not found"})
 
-    # --- WHITELIST MAPPING (Controlled Aperture) ---
-    mapping = {
-        "com_df_master": "view_comm_link_quality",
-        "est_df_master": "view_est_master",
-        "nav_df_master": "ui_nav_drone_monitor",
-        "sys_df_master": "view_system_vibe_stress",
-        "power_df_master": "view_power_health"
-    }
-
-    if view not in mapping:
-        print(f"ERROR: Unauthorized view access attempt: {view}")
-        return JSONResponse(status_code=400, content={"error": f"Invalid domain: {view}"})
-
-    db_view_name = mapping[view]
     con = duckdb.connect(DB_PATH, read_only=True)
-
     try:
-        # --- SECURE PARAMETERIZED QUERY ---
-        query = f"SELECT * FROM {db_view_name}"
-        params = []
+        # Dynamic discovery of all available views
+        available_views = [row[0] for row in con.execute("SHOW VIEWS").fetchall()]
 
+        # Dynamic discovery of all fact tables
+        available_facts = [row[0] for row in con.execute("SHOW TABLES").fetchall()
+                           if row[0].startswith("fact_")]
+
+        # Combine for validation
+        all_objects = available_views + available_facts
+        if view not in all_objects:
+            return JSONResponse(status_code=400, content={"error": f"Invalid view/table: {view}"})
+
+        query = f"SELECT * FROM {view}"
+        params = []
         if mission_id:
             query += " WHERE mission_id = ?"
             params.append(mission_id)
 
-        print(f"DEBUG: Executing: {query} | Params: {params}")
-
         df = con.execute(query, params).df()
-        row_count = len(df)
-
-        # Sanitize for JSON (NaN -> None)
         data = df.replace({np.nan: None}).to_dict(orient="records")
 
+        layer_type = detect_layer(view)
         return {
             "mission_id": mission_id,
-            "view": db_view_name,
-            "row_count": row_count,
+            "view": view,
+            "layer": layer_type,
             "telemetry": data
         }
-
-    except Exception as e:
-        print(f"ERROR during query: {str(e)}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         con.close()
-
-# --- Restore Missions Endpoint ---
-@app.get("/forensic/missions")
-async def list_missions():
-    if not os.path.exists(MISSION_VAULT):
-        return {"missions": []}
-    missions = [d for d in os.listdir(MISSION_VAULT) if os.path.isdir(os.path.join(MISSION_VAULT, d)) or d.endswith('.parquet')]
-    return {"missions": sorted(missions)}
 
 if __name__ == "__main__":
     import uvicorn

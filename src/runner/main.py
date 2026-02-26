@@ -2,13 +2,13 @@ import sys
 import os
 
 # Internal Imports
-from src.runner.orchestrator import Orchestrator
-from src.ingress.nav_architect import NavArchitect
-from src.ingress.sys_architect import SysArchitect
-from src.ingress.com_architect import ComArchitect
-from src.ingress.est_architect import EstimatorArchitect
-from src.vault.clerk import Clerk
-from src.scripts.report_generator import ReportGenerator  # Post-run analytics
+from runner.orchestrator import Orchestrator
+from ingress.nav_architect import NavArchitect
+from ingress.sys_architect import SysArchitect
+from ingress.com_architect import ComArchitect
+from ingress.est_architect import EstimatorArchitect
+from vault.clerk import Clerk
+from scripts.report_generator import ReportGenerator  # Post-run analytics
 
 def main():
     print("\n" + "="*50)

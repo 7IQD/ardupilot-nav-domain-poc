@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from src.data_mart_engine.database_manager import DatabaseManager
+from data_mart_engine.database_manager import DatabaseManager
 
 def load_flight_snapshot() -> Dict[str, Any]:
     db = DatabaseManager()

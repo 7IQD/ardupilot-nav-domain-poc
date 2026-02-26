@@ -1,62 +1,77 @@
-#!/usr/bin/env python3
 import os
 import duckdb
-import logging
+from weaving.ingest_df.df_action_map import DFActionMap
 
-# -------------------------
-# Base Refiner
-# -------------------------
-class BaseRefiner:
-    def __init__(self, staging_dir, warehouse_dir, mission_id, anchor=0):
-        self.staging_dir = staging_dir
-        self.warehouse_dir = warehouse_dir
+class DFRefiner:
+    def __init__(self, clerk, mission_id):
+        """
+        Initializes the Refiner with path management and mission context.
+        """
+        self.clerk = clerk
         self.mission_id = mission_id
-        self.anchor = anchor
+        self.con = duckdb.connect()
 
-    def _execute_refinement(self, domain_name, time_col, divisor, pattern):
-        master_path = os.path.join(self.warehouse_dir, f"{domain_name}_df_master.parquet")
-        shard_pattern = os.path.join(self.staging_dir, pattern)
+    def refine_domain(self, domain):
+        """
+        Refines shards into a master table using schema-aware aliasing.
+        """
+        # 1. Get the target schema (what we WANT)
+        target_columns = DFActionMap.get_columns(domain)
+        if not target_columns:
+            return
 
-        con = duckdb.connect(':memory:')
+        # 2. Identify the source shards (what we HAVE)
+        shard_pattern = os.path.join(self.clerk.vault_b, f"{domain.lower()}_shard_*.parquet")
+
+        # 3. Schema-Awareness: Get actual column names from the shards
         try:
-            # Refine shards: mission_id, mission_time, wall_ns, sanitize NaNs
-            refined_query = f"""
+            raw_schema_query = f"DESCRIBE SELECT * FROM read_parquet('{shard_pattern}')"
+            raw_schema = [row[0] for row in self.con.execute(raw_schema_query).fetchall()]
+        except Exception as e:
+            print(f"❌ {domain} schema check failed: {e}")
+            return
+
+        # 4. Build the dynamic SELECT statement
+        mapping = DFActionMap.SOURCE_MAPPING.get(domain, {})
+        select_parts = []
+
+        for col in target_columns:
+            source_field = mapping.get(col)
+
+            if source_field and source_field in raw_schema:
+                # Scenario A: Mapping exists and source column is found (e.g., 'Curr' -> 'Amp')
+                select_parts.append(f'"{source_field}" AS "{col}"')
+            elif col in raw_schema:
+                # Scenario B: Target name already exists in source (e.g., 'Volt' is already 'Volt')
+                select_parts.append(f'"{col}"')
+            else:
+                # Scenario C: Field is missing from this specific log (e.g., old log missing 'RSSI')
+                # We insert a NULL column to keep the table structure consistent.
+                select_parts.append(f'CAST(NULL AS DOUBLE) AS "{col}"')
+
+        # Add mandatory metadata and sorting keys
+        if "TimeUS" not in [p.split()[-1].replace('"', '') for p in select_parts]:
+            select_parts.insert(0, '"TimeUS"')
+
+        select_parts.extend(['"inode"', '"wall_ns"'])
+        col_selection = ", ".join(select_parts)
+
+        # 5. Execute the "Sling" to Warehouse (Vault C)
+        output_path = os.path.join(self.clerk.warehouse_df, f"master_{domain}.parquet")
+
+        sql = f"""
             COPY (
                 SELECT
                     '{self.mission_id}' AS mission_id,
-                    (({time_col} - {self.anchor}) / {divisor}) AS mission_time,
-                    CAST({time_col} * (1000000000 / {divisor}) AS BIGINT) AS wall_ns,
-                    * EXCLUDE ({time_col})
+                    {col_selection}
                 FROM read_parquet('{shard_pattern}')
-                ORDER BY mission_time ASC
-            ) TO '{master_path}' (FORMAT 'PARQUET')
-            """
-            con.execute(refined_query)
-            logging.info(f"✅ {domain_name.upper()} refined to {master_path} (JSON-Compliant)")
+                ORDER BY TimeUS, inode
+            ) TO '{output_path}' (FORMAT 'PARQUET');
+        """
+
+        try:
+            self.con.execute(sql)
+            res = self.con.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()
+            print(f"✅ {domain: <6} Refined: {res[0]: >6} rows | {len(target_columns)} columns.")
         except Exception as e:
-            logging.error(f"❌ {domain_name.upper()} refinement failed: {e}")
-        finally:
-            con.close()
-
-# -------------------------
-# Domain-specific Refiners
-# -------------------------
-class NavRefiner(BaseRefiner):
-    def refine(self):
-        self._execute_refinement("nav", "TimeUS", 1e6, "nav_shard_*.parquet")
-
-class EstRefiner(BaseRefiner):
-    def refine(self):
-        self._execute_refinement("est", "timestamp_sec", 1, "est_shard_*.parquet")
-
-class SysRefiner(BaseRefiner):
-    def refine(self):
-        self._execute_refinement("sys", "TimeUS", 1e6, "sys_shard_*.parquet")
-
-class PowerRefiner(BaseRefiner):
-    def refine(self):
-        self._execute_refinement("power", "TimeUS", 1e6, "power_shard_*.parquet")
-
-class ComRefiner(BaseRefiner):
-    def refine(self):
-        self._execute_refinement("com", "TimeUS", 1e6, "com_shard_*.parquet")
+            print(f"❌ {domain} refinement failed: {e}")

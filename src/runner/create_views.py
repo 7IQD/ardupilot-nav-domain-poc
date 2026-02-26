@@ -2,63 +2,98 @@
 import os
 import duckdb
 
-# --- 1. PATH CONFIGURATION ---
+# --- PATH CONFIGURATION ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-WAREHOUSE_DF = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df")
-VAULT_DB = os.path.join(WAREHOUSE_DF, "drone_df_views.db")
+WAREHOUSE_DIR = os.path.join(PROJECT_ROOT, "bin/vault/warehouse_df")
+DB_PATH = os.path.join(WAREHOUSE_DIR, "drone_df_views.db")
+
+# Source Parquet Path
+NAV_PARQUET = os.path.join(WAREHOUSE_DIR, "nav_df_master.parquet")
 
 def main():
-    print(f"🏗️  Starting DuckDB Optimized Projection Layer")
-    print(f"📁 Source Warehouse: {WAREHOUSE_DF}")
-    print(f"🗄️  Target DB: {VAULT_DB}")
+    print(f"🚀 Initializing Medallion Pipeline...")
 
-    # --- 2. REFRESH FACT TABLES ---
-    MASTER_MAP = {
-        "nav": "nav_df_master.parquet",
-        "sys": "sys_df_master.parquet",
-        "power": "power_df_master.parquet",
-        "com": "com_df_master.parquet",
-        "est": "est_df_master.parquet",
-    }
+    if not os.path.exists(NAV_PARQUET):
+        print(f"❌ ERROR: Source master not found: {NAV_PARQUET}")
+        return
 
-    conn = duckdb.connect(VAULT_DB)
+    # Connect to the persistent DuckDB
+    conn = duckdb.connect(DB_PATH)
 
-    for domain, parquet_file in MASTER_MAP.items():
-        parquet_path = os.path.join(WAREHOUSE_DF, parquet_file)
-        if os.path.exists(parquet_path):
-            table_name = f"fact_{domain if domain != 'com' else 'communication'}"
-            conn.execute(f"""
-                CREATE OR REPLACE TABLE {table_name} AS
-                SELECT * FROM read_parquet('{parquet_path}')
-            """)
-            print(f"✅ Fact Table Refreshed: {table_name}")
-        else:
-            print(f"⚠️  Missing Master Parquet: {parquet_file}")
+    try:
+        # ---------------------------------------------------------
+        # 🥈 SILVER LAYER: fact_nav_events
+        # Immutable Ledger of every message found in the BIN
+        # ---------------------------------------------------------
+        print("🥈 Deploying Silver Layer: fact_nav_events...")
+        conn.execute(f"""
+            CREATE OR REPLACE TABLE fact_nav_events AS
+            SELECT * FROM read_parquet('{NAV_PARQUET}')
+        """)
 
-    # --- 3. OPTIMIZED BATCH VIEWS (Terminal UI / Performance Fix) ---
-    print("\n🔭 Materializing Optimized Views for Terminal UI...")
+        # ---------------------------------------------------------
+        # 🥇 GOLD LAYER: fact_nav_state
+        # State Reconstruction via LOCF (Last Observation Carried Forward)
+        # ---------------------------------------------------------
+        print("🥇 Deploying Gold Layer: fact_nav_state...")
+        # (TimeUS, inode) tuple ensures perfect deterministic ordering
+        conn.execute("""
+            CREATE OR REPLACE TABLE fact_nav_state AS
+            SELECT
+                *,
+                LAST_VALUE(Lat IGNORE NULLS) OVER (
+                    PARTITION BY mission_id ORDER BY TimeUS ASC, inode ASC
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as aligned_lat,
+                LAST_VALUE(Lng IGNORE NULLS) OVER (
+                    PARTITION BY mission_id ORDER BY TimeUS ASC, inode ASC
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as aligned_lng,
+                LAST_VALUE(RelHomeAlt IGNORE NULLS) OVER (
+                    PARTITION BY mission_id ORDER BY TimeUS ASC, inode ASC
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as aligned_alt,
+                LAST_VALUE(RelOriginAlt IGNORE NULLS) OVER (
+                    PARTITION BY mission_id ORDER BY TimeUS ASC, inode ASC
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) as aligned_origin
+            FROM fact_nav_events;
+        """)
 
-    # Strategy:
-    # 1. LIMIT 2000 rows per view to avoid JSON/DOM bloat.
-    # 2. Optional: ORDER BY timestamp or mission_id if recent/relevant data is preferred.
+        # ---------------------------------------------------------
+        # 🔭 SEMANTIC LAYER: view_nav_monitor
+        # The Final UI Contract with Quoted Case-Sensitive Aliases
+        # ---------------------------------------------------------
+        print("🔭 Deploying Semantic Layer: view_nav_monitor...")
+        conn.execute("""
+            CREATE OR REPLACE VIEW view_nav_monitor AS
+            SELECT
+                mission_id,
+                TimeUS,
+                aligned_lat AS "Lat",
+                aligned_lng AS "Lng",
+                aligned_alt AS "RelHomeAlt",
+                aligned_origin AS "RelOriginAlt",
+                inode
+            FROM fact_nav_state;
+        """)
 
-    VIEWS = {
-        "ui_nav_drone_monitor": "SELECT * FROM fact_nav LIMIT 2000",
-        "view_system_vibe_stress": "SELECT * FROM fact_sys LIMIT 2000",
-        "view_power_health": "SELECT * FROM fact_power LIMIT 2000",
-        "view_est_master": "SELECT * FROM fact_est LIMIT 2000",
-        "view_comm_link_quality": "SELECT * FROM fact_communication LIMIT 2000"
-    }
+        # ---------------------------------------------------------
+        # ✅ VALIDATION
+        # ---------------------------------------------------------
+        print("\n🧪 System Verification:")
+        tables = conn.execute("SHOW TABLES").fetchall()
+        print(f"  -> Total Tables/Views: {len(tables)}")
 
-    for view_name, query in VIEWS.items():
-        try:
-            conn.execute(f"CREATE OR REPLACE VIEW {view_name} AS {query}")
-            print(f"🚀 Optimized View Created: {view_name}")
-        except Exception as e:
-            print(f"⚠️  Failed to create {view_name}: {e}")
+        cols = conn.execute("DESCRIBE view_nav_monitor").fetchall()
+        for col in cols:
+            print(f"  -> UI Column: {col[0]} ({col[1]})")
 
-    conn.close()
-    print("\n🏁 Aperture Control Complete. Restart FastAPI to observe performance improvement.")
+    except Exception as e:
+        print(f"💥 Deployment Failed: {e}")
+    finally:
+        conn.close()
+        print(f"\n🏁 Warehouse Ready: {DB_PATH}")
 
 if __name__ == "__main__":
     main()

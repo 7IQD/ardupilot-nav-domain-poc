@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data_mart_engine.database_manager import DatabaseManager
+from data_mart_engine.database_manager import DatabaseManager
 
 class MissionSummary:
     def __init__(self):

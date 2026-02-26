@@ -29,3 +29,13 @@ src/
         └── dashboard/
             └── nav_audit/                # Immutable mission evidence
                 └── M_<mission_id>/       # Snapshot folders (PNG / CSV)
+
+## Vault Schema & Semantic Layer
+
+| Domain | Silver (Fact Table)       | Gold (State Table)      | UI Layer (View)        |
+|--------|--------------------------|------------------------|-----------------------|
+| NAV    | fact_nav_events           | fact_nav_state         | view_nav_monitor      |
+| EST    | fact_est_events           | fact_est_state         | view_est_analysis     |
+| SYS    | fact_sys_events           | fact_sys_state         | view_sys_health       |
+| POWER  | fact_power_events         | fact_power_state       | view_power_metrics    |
+| COM    | fact_com_events           | fact_com_state         | view_com_quality      |

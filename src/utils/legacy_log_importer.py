@@ -1,8 +1,8 @@
 import os
 from pymavlink import mavutil
-from src.ingress.data_manager import Clerk
-from src.ingress.architects.nav_architect import NavArchitect
-from src.ingress.architects.sys_architect import SysArchitect
+from ingress.data_manager import Clerk
+from ingress.architects.nav_architect import NavArchitect
+from ingress.architects.sys_architect import SysArchitect
 
 class IngressEngine:
     def __init__(self, source_log="mav.tlog"):

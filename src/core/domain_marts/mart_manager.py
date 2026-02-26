@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from src.core.domain_marts.nav_reliability import refresh_nav_mart
-from src.core.domain_marts.sys_reliability import refresh_sys_mart
-from src.core.domain_marts.power_health import refresh_power_mart
-from src.core.domain_marts.est_accuracy import refresh_est_mart
-from src.core.domain_marts.com_link import refresh_com_mart
+from core.domain_marts.nav_reliability import refresh_nav_mart
+from core.domain_marts.sys_reliability import refresh_sys_mart
+from core.domain_marts.power_health import refresh_power_mart
+from core.domain_marts.est_accuracy import refresh_est_mart
+from core.domain_marts.com_link import refresh_com_mart
 
 from pathlib import Path
 

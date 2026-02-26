@@ -6,7 +6,7 @@ Directly utilizes DatabaseManager to bypass obsolete query_vault.
 """
 
 from typing import Dict, Any
-from src.data_mart_engine.database_manager import DatabaseManager
+from data_mart_engine.database_manager import DatabaseManager
 
 # Metrics aligned with the fact_nav_precision table columns we just verified
 EKF_METRICS = [

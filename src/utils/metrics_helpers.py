@@ -1,23 +1,22 @@
-# src/scorecards/utils/metrics_helpers.py
+import numpy as np
+import pandas as pd
 
-def normalize_inverse(value, worst, best):
+def normalize_inverse(values, worst, best):
     """
-    Lower is better (e.g., variance, HDOP).
-    Returns score 0–100.
+    Lower is better (e.g., variance, HDOP)
+    Works with scalar, pandas Series, or NumPy arrays
+    Returns values clipped between 0–100
     """
-    if value >= worst:
-        return 0
-    if value <= best:
-        return 100
-    return 100 * (worst - value) / (worst - best)
+    values = np.array(values, dtype=float)
+    score = 100 * (worst - values) / (worst - best)
+    return np.clip(score, 0, 100)
 
-
-def normalize_direct(value, worst, best):
+def normalize_direct(values, worst, best):
     """
-    Higher is better (e.g., satellite count).
+    Higher is better (e.g., satellite count)
+    Works with scalar, pandas Series, or NumPy arrays
+    Returns values clipped between 0–100
     """
-    if value <= worst:
-        return 0
-    if value >= best:
-        return 100
-    return 100 * (value - worst) / (best - worst)
+    values = np.array(values, dtype=float)
+    score = 100 * (values - worst) / (best - worst)
+    return np.clip(score, 0, 100)

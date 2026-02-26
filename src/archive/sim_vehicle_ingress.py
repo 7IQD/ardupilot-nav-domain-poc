@@ -2,8 +2,8 @@
 import logging
 import threading
 import time
-from src.ingress.architect import NavArchitect
-# from src.ingress.sys_architect import SysArchitect  # Uncomment when SysArchitect implemented
+from ingress.architect import NavArchitect
+# from ingress.sys_architect import SysArchitect  # Uncomment when SysArchitect implemented
 # from pymavlink import mavutil  # Uncomment for real UDP/MAVLink input
 
 # -------------------------------
