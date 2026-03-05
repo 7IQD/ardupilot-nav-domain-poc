@@ -1,77 +1,73 @@
 import os
+import glob
 import duckdb
 from weaving.ingest_df.df_action_map import DFActionMap
 
 class DFRefiner:
     def __init__(self, clerk, mission_id):
         """
-        Initializes the Refiner with path management and mission context.
+        Initializes the Refiner using Clerk's path authority.
+        Uses in-memory DuckDB for high-speed Parquet transformation.
         """
         self.clerk = clerk
         self.mission_id = mission_id
-        self.con = duckdb.connect()
+        self.con = duckdb.connect(database=':memory:')
 
     def refine_domain(self, domain):
         """
-        Refines shards into a master table using schema-aware aliasing.
+        Promotes Vault B shards to Vault C Masters.
+        Implements NULL-filling for domains and Universal Capture for MISC.
         """
-        # 1. Get the target schema (what we WANT)
-        target_columns = DFActionMap.get_columns(domain)
-        if not target_columns:
-            return
+        domain = domain.upper()
 
-        # 2. Identify the source shards (what we HAVE)
+        # 1. Resolve Paths
+        target_parquet = self.clerk.get_warehouse_path(domain)
         shard_pattern = os.path.join(self.clerk.vault_b, f"{domain.lower()}_shard_*.parquet")
 
-        # 3. Schema-Awareness: Get actual column names from the shards
-        try:
-            raw_schema_query = f"DESCRIBE SELECT * FROM read_parquet('{shard_pattern}')"
-            raw_schema = [row[0] for row in self.con.execute(raw_schema_query).fetchall()]
-        except Exception as e:
-            print(f"❌ {domain} schema check failed: {e}")
+        # 2. Simple Safety Check
+        if not glob.glob(shard_pattern):
+            # print(f"ℹ️ No shards found for {domain}, skipping.")
             return
 
-        # 4. Build the dynamic SELECT statement
-        mapping = DFActionMap.SOURCE_MAPPING.get(domain, {})
-        select_parts = []
-
-        for col in target_columns:
-            source_field = mapping.get(col)
-
-            if source_field and source_field in raw_schema:
-                # Scenario A: Mapping exists and source column is found (e.g., 'Curr' -> 'Amp')
-                select_parts.append(f'"{source_field}" AS "{col}"')
-            elif col in raw_schema:
-                # Scenario B: Target name already exists in source (e.g., 'Volt' is already 'Volt')
-                select_parts.append(f'"{col}"')
-            else:
-                # Scenario C: Field is missing from this specific log (e.g., old log missing 'RSSI')
-                # We insert a NULL column to keep the table structure consistent.
-                select_parts.append(f'CAST(NULL AS DOUBLE) AS "{col}"')
-
-        # Add mandatory metadata and sorting keys
-        if "TimeUS" not in [p.split()[-1].replace('"', '') for p in select_parts]:
-            select_parts.insert(0, '"TimeUS"')
-
-        select_parts.extend(['"inode"', '"wall_ns"'])
-        col_selection = ", ".join(select_parts)
-
-        # 5. Execute the "Sling" to Warehouse (Vault C)
-        output_path = os.path.join(self.clerk.warehouse_df, f"master_{domain}.parquet")
-
-        sql = f"""
-            COPY (
-                SELECT
-                    '{self.mission_id}' AS mission_id,
-                    {col_selection}
-                FROM read_parquet('{shard_pattern}')
-                ORDER BY TimeUS, inode
-            ) TO '{output_path}' (FORMAT 'PARQUET');
-        """
-
+        # 3. Hardware Column Discovery (FMT Alignment)
         try:
-            self.con.execute(sql)
-            res = self.con.execute(f"SELECT COUNT(*) FROM '{output_path}'").fetchone()
-            print(f"✅ {domain: <6} Refined: {res[0]: >6} rows | {len(target_columns)} columns.")
+            raw_info = self.con.execute(f"DESCRIBE SELECT * FROM read_parquet('{shard_pattern}')").fetchall()
+            shard_cols = [row[0] for row in raw_info]
         except Exception as e:
-            print(f"❌ {domain} refinement failed: {e}")
+            print(f"⚠️ Error reading shards for {domain}: {e}")
+            return
+
+        # 4. Build Selection Clause (Zero-Drop Logic)
+        if domain == "MISC":
+            # Universal Capture: Everything + msg_type
+            select_clause = "*"
+        else:
+            # Domain Capture: Ensure all ActionMap columns exist (even as NULL)
+            target_columns = DFActionMap.get_columns(domain)
+            select_parts = []
+            for col in target_columns:
+                if col in shard_cols:
+                    select_parts.append(f'"{col}"')
+                else:
+                    select_parts.append(f'NULL AS "{col}"')
+            select_clause = ", ".join(select_parts)
+
+        # 5. Atomic Promotion (Deduplicated by TimeUS)
+        try:
+            self.con.execute(f"""
+                COPY (
+                    WITH local_shards AS (
+                        SELECT
+                            '{self.mission_id}' AS mission_id,
+                            {select_clause},
+                            wall_ns
+                        FROM read_parquet('{shard_pattern}')
+                    )
+                    SELECT * EXCLUDE(wall_ns) FROM local_shards
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY TimeUS ORDER BY wall_ns DESC) = 1
+                    ORDER BY TimeUS
+                ) TO '{target_parquet}' (FORMAT 'PARQUET');
+            """)
+            print(f"✅ [Refiner] {domain: <6} -> {os.path.basename(target_parquet)}")
+        except Exception as e:
+            print(f"❌ [Refiner] Failed to refine {domain}: {e}")

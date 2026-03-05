@@ -1,64 +1,41 @@
 #!/usr/bin/env python3
-"""
-df_refinery.py
-Refinement Entry Point: Staging (Vault B) -> Warehouse (Vault C)
-Consolidated for weaving.ingest_df package.
-"""
-
 import os
 import sys
-import shutil
 
-# --- PERMANENT PATH FIX ---
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__)) # src/runner
-SRC_DIR = os.path.dirname(SCRIPT_DIR)                   # src
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
+# --- BOOTSTRAP: Anchor to Project Root ---
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../"))
 
-# --- IMPORTS (Corrected to use weaving.ingest_df) ---
-try:
-    from weaving.ingest_df.refiners import DFRefiners
-    from weaving.ingest_df.df_action_map import DFActionMap
-    from vault.clerk_df import ClerkDF
-except ImportError as e:
-    print(f"❌ Critical Import Error: {e}")
-    print("Ensure all files are in src/weaving/ingest_df/")
-    sys.exit(1)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+# ------------------------------------------
+from weaving.ingest_df.refiners import DFRefiner
+from weaving.ingest_df.df_action_map import DFActionMap
+from glob import glob
+from weaving.ingest_df.refiners import DFRefiner
+from weaving.ingest_df.df_action_map import DFActionMap
+from vault.clerk_df import ClerkDF
 
 def main():
-    # Initialize Clerk and Refiner
     clerk = ClerkDF()
-    refiner = DFRefiners()
 
-    print("=" * 60)
-    print("💎 Stage 4: Refining Staged Shards into Warehouse...")
-    print("=" * 60)
+    # 1. Detect mission context
+    shard_files = glob(os.path.join(clerk.vault_b, "*.parquet"))
+    if not shard_files:
+        print("❌ No shards found in Vault B. Ingress failed?")
+        return
 
-    # Clean the warehouse (Vault C) before starting
-    print("🧹 Preparing Warehouse (Vault C)...")
-    if hasattr(clerk, 'clear_warehouse'):
-        clerk.clear_warehouse()
-    else:
-        # Manual fallback if ClerkDF method is missing
-        vault_c_path = getattr(clerk, 'vault_c', 'bin/vault/vault_c')
-        if os.path.exists(vault_c_path):
-            shutil.rmtree(vault_c_path)
-        os.makedirs(vault_c_path, exist_ok=True)
+    mission_id = os.path.basename(shard_files[0]).split("_")[2].split(".")[0]
+    refiner = DFRefiner(clerk=clerk, mission_id=mission_id)
 
-    # Process each domain defined in the Action Map
+    print(f"💎 Refining BIN-to-FACT for Mission: {mission_id}")
+
+    # 2. Iterate through all domains + MISC
+    # Logic: If a message wasn't claimed by NAV/PWR/etc, it will be in the MISC shard.
     for domain in DFActionMap.get_domains():
-        print(f"🛠️  Refining Domain: {domain: <6}")
+        refiner.refine_domain(domain)
 
-        try:
-            # This calls the DuckDB logic to merge shards into single tables
-            refiner.refine_domain(domain)
-        except Exception as e:
-            print(f"⚠️  Error refining {domain}: {e}")
-
-    print("=" * 60)
-    print("🏆 SUCCESS: Data Warehouse is fully populated!")
-    print(f"📂 Location: {clerk.vault_c}")
-    print("=" * 60)
+    print("🏆 Warehouse Build Complete. Zero Data Leakage Architecture Enforced.")
 
 if __name__ == "__main__":
     main()

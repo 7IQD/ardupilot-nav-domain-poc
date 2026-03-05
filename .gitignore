@@ -1,26 +1,55 @@
-# --- Raw logs (skip these) ---
+# ==========================================
+# ARDUPILOT NAV DOMAIN - GITIGNORE
+# ==========================================
+
+# --- Raw logs (skip these - too heavy) ---
 *.bin
 *.tlog
 bin/vault/df_source/
 
 # --- Keep processed vaults and warehouse masters tracked ---
-# vault shards & warehouse Parquet files will be tracked
+# We track the 'Gold' and 'Platinum' logic-shards, but not the raw source
 !bin/vault/vault_a/
 !bin/vault/vault_b/
 !bin/vault/vault_c/
 !bin/vault/warehouse_df/
 
-# --- Temporary / reports ---
+# --- Temporary / Reports ---
+# Exclude individual parquet exports to prevent repo bloat
 bin/vault/reports/*.parquet
+*.csv
+*.xlsx
+EST_DIAGNOSTICS.csv
+bin_registry_full.csv
+
+# --- Databases ---
+# We generally ignore the massive DuckDB binary because
+# it's reproducible via src/runner/create_views.py
+bin/vault/*.db
 
 # --- Logs and baselines ---
 *.txt
 *.log
+tests/evidence/
 
-# --- Python environment ---
+# --- Python environment & IDE ---
 __pycache__/
+*.py[cod]
+*$py.class
 venv*/
+.venv/
 .vscode/
+.idea/
+.env
 
-# --- Docs temp files ---
+# --- Docs & Images ---
+# Ignore temp learning files but keep official architecture docs
 docs/Temp-Learning/
+# Keep images used for documentation
+!images/*.PNG
+!images/*.jpg
+
+# --- System Garbage ---
+.DS_Store
+Thumbs.db
+=

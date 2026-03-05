@@ -1,51 +1,35 @@
 class DFActionMap:
     """
     The Authority on Domain Schemas.
-    Maps raw ArduPilot message fields to standardized Warehouse columns.
+    Maps raw ArduPilot message fields to standardized Warehouse tables.
     """
-
-    # 1. Define which raw messages belong to which domain.
-    # Used by df_main.py to know what to extract from the .BIN file.
+    # MSG_MAP: Which MAVLink messages belong to which domain
     MSG_MAP = {
-        'NAV':   ['ATT', 'POS', 'GPS', 'AHR2'],
-        'EST':   ['XKF1', 'NKF1', 'VIBE'],
-        'SYS':   ['POWR', 'MCU', 'PM'],
-        'POWER': ['BAT', 'POWR'],
-        'COM':   ['RADIO', 'RCIN']
+        'NAV':   ['ATT', 'POS', 'GPS', 'AHR2', 'XKF1'],
+        'EST':   ['NKF1', 'VIBE', 'IMU'],
+        'SYS':   ['PM', 'MCU', 'POWR'],
+        'POWER': ['BAT'],
+        'COM':   ['RADIO', 'RCIN', 'RCOUT']
     }
 
-    # 2. Define the final schema for the Warehouse (Vault C).
-    # 'NSats' is now correctly added to the NAV domain.
+    # DOMAINS: The canonical hardware columns (exact FMT names)
     DOMAINS = {
-        'NAV':   ['TimeUS', 'Roll', 'Pitch', 'Yaw', 'Lat', 'Lng', 'Alt', 'Spd', 'NSats'],
-        'EST':   ['TimeUS', 'Roll', 'Pitch', 'Yaw', 'Lat', 'Lng', 'Alt'],
-        'SYS':   ['TimeUS', 'Load', 'NLoad', 'Mem'],
-        'POWER': ['TimeUS', 'Volt', 'Amp', 'Volt_R', 'CurrTot'],
+        'NAV':   ['TimeUS', 'Lat', 'Lng', 'Alt', 'Spd', 'NSats', 'HDop', 'Status', 'Roll', 'Pitch', 'Yaw'],
+        'EST':   ['TimeUS', 'Roll', 'Pitch', 'Yaw', 'VN', 'VE', 'VD'],
+        'SYS':   ['TimeUS', 'Load', 'Mem', 'KHz'],
+        'POWER': ['TimeUS', 'Volt', 'Amp', 'EnrgTot', 'Temp'],
         'COM':   ['TimeUS', 'RSSI', 'RemRSS', 'TxPwr']
-    }
-
-    # 3. Rename Logic (Source -> Target).
-    SOURCE_MAPPING = {
-        'POWER': {
-            'Amp': 'Curr',
-            'Volt_R': 'VoltR'
-        },
-        'SYS': {
-            'Load': 'Load'
-        }
     }
 
     @staticmethod
     def get_msg_types(domain):
-        """Returns ArduPilot message types for the ingress stage."""
         return DFActionMap.MSG_MAP.get(domain.upper(), [])
 
     @staticmethod
     def get_columns(domain):
-        """Returns the final column list for the refining stage."""
         return DFActionMap.DOMAINS.get(domain.upper(), [])
 
     @staticmethod
     def get_domains():
-        """Returns all registered domains (matching what df_refinery.py expects)."""
-        return list(DFActionMap.DOMAINS.keys())
+        # Includes MISC by default as the safety net
+        return list(DFActionMap.DOMAINS.keys()) + ['MISC']
