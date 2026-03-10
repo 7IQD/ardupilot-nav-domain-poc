@@ -2,54 +2,64 @@
 # ARDUPILOT NAV DOMAIN - GITIGNORE
 # ==========================================
 
-# --- Raw logs (skip these - too heavy) ---
+# ---------- Raw flight logs ----------
+*.BIN
 *.bin
 *.tlog
-bin/vault/df_source/
 
-# --- Keep processed vaults and warehouse masters tracked ---
-# We track the 'Gold' and 'Platinum' logic-shards, but not the raw source
-!bin/vault/vault_a/
-!bin/vault/vault_b/
-!bin/vault/vault_c/
-!bin/vault/warehouse_df/
+# ---------- Vault storage (generated data) ----------
+bin/vault/*
 
-# --- Temporary / Reports ---
-# Exclude individual parquet exports to prevent repo bloat
-bin/vault/reports/*.parquet
+# Allow placeholder
+!bin/vault/.gitkeep
+
+# ---------- Parquet data ----------
+*.parquet
+
+# ---------- Databases ----------
+*.db
+*.duckdb
+
+# ---------- Reports ----------
 *.csv
 *.xlsx
-EST_DIAGNOSTICS.csv
-bin_registry_full.csv
 
-# --- Databases ---
-# We generally ignore the massive DuckDB binary because
-# it's reproducible via src/runner/create_views.py
-bin/vault/*.db
-
-# --- Logs and baselines ---
-*.txt
+# ---------- Logs ----------
 *.log
+*.txt
+
+# ---------- Test evidence ----------
 tests/evidence/
 
-# --- Python environment & IDE ---
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
 *$py.class
-venv*/
+
+# ---------- Virtual environments ----------
+venv/
 .venv/
+
+# ---------- IDE ----------
 .vscode/
 .idea/
+
+# ---------- Environment ----------
 .env
 
-# --- Docs & Images ---
-# Ignore temp learning files but keep official architecture docs
+# ---------- Notebooks ----------
+notebooks/
+*.ipynb
+
+# ---------- Docs temporary ----------
 docs/Temp-Learning/
-# Keep images used for documentation
+
+# ---------- Images ----------
+!images/*.png
 !images/*.PNG
 !images/*.jpg
+!images/*.jpeg
 
-# --- System Garbage ---
+# ---------- System junk ----------
 .DS_Store
 Thumbs.db
-=

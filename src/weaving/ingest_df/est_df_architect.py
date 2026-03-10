@@ -5,6 +5,6 @@ class EstDFArchitect(DFIngressMavArchitect):
         super().__init__(
             bin_path=bin_path,
             domain_key="EST",
-            msg_types=["ATT", "XKF1", "NKF1", "AHR2"],
+            msg_types=["ATT", "XKF1", "NKF1", "AHR2", "VIBE"],
             limit=limit
         )
