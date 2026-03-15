@@ -1,12 +1,11 @@
-Here’s the DF module documentation with the **BIN-to-FACT logic and domain assignment** added concisely under the architecture:
+# DF Processing
 
----
-
-# DF Processing Path: BIN Drone Parameters → FACT Tables (BIN-to-Fact)
-
-The **DF path** implements **Universal Capture**, a **lossless BIN-to-FACT architecture** that guarantees all **drone-reported parameters** are retained, persisted, and made available for downstream domain analysis. The system is **protocol-agnostic** and **hardware-faithful**, ensuring no telemetry is lost across domains such as NAV, POWER, SYS, COM, or EST.
-
----
+DF Path
+  # Captures all the drone-reported parameters
+  # lossless BIN-to-FACT Tables in the Database as FACT
+  # Tabels(*.Master.parquets for NAV, POWER, SYS, COM, or EST domains)
+  # Downstream domain analysis
+  # Protocol-agnostic
 
 ### 1. Universal Capture at Ingress (DF Architect)
 
