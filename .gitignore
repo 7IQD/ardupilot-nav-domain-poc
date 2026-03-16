@@ -1,65 +1,36 @@
-# ==========================================
-# ARDUPILOT NAV DOMAIN - GITIGNORE
-# ==========================================
+# --- ArduPilot Nav-Domain POC .gitignore ---
 
-# ---------- Raw flight logs ----------
+# 1. Block all heavy data formats (Vault)
 *.BIN
-*.bin
 *.tlog
-
-# ---------- Vault storage (generated data) ----------
-bin/vault/*
-
-# Allow placeholder
-!bin/vault/.gitkeep
-
-# ---------- Parquet data ----------
 *.parquet
-
-# ---------- Databases ----------
-*.db
-*.duckdb
-
-# ---------- Reports ----------
-*.csv
-*.xlsx
-
-# ---------- Logs ----------
-*.log
-*.txt
-
-# ---------- Test evidence ----------
-tests/evidence/
-
-# ---------- Python ----------
+*.pyc
 __pycache__/
-*.py[cod]
-*$py.class
 
-# ---------- Virtual environments ----------
-venv/
+# --- Environment & Security ---
+.env
+.env.local
+.env.*.local
 .venv/
+venv-*/
 
-# ---------- IDE ----------
+# 2. Block general text files to avoid "junk"
+*.txt
+*.log
+*.csv
+
+# 3. EXCEPTION: Allow evidence and documentation
+!tests/evidence/*.txt
+!tests/evidence/*.md
+!tests/evidence/*.pdf
+
+# 4. OS / IDE noise
+.DS_Store
 .vscode/
 .idea/
 
-# ---------- Environment ----------
-.env
-
-# ---------- Notebooks ----------
-notebooks/
-*.ipynb
-
-# ---------- Docs temporary ----------
-docs/Temp-Learning/
-
-# ---------- Images ----------
-!images/*.png
-!images/*.PNG
-!images/*.jpg
-!images/*.jpeg
-
-# ---------- System junk ----------
-.DS_Store
-Thumbs.db
+# --- Block Data Vaults ---
+bin/vault/df_source/
+bin/vault/vault_a/
+bin/vault/vault_c/
+src/ingress/bin/

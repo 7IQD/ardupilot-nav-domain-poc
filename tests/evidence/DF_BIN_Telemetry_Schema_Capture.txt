@@ -1,0 +1,177 @@
+┌───────────────────────────┐
+│          header           │
+├───────────────────────────┤
+│ --- NAVIGATION DOMAIN --- │
+└───────────────────────────┘
+┌───────────────┬─────────────┬──────┬─────┬─────────┬───────┐
+│  column_name  │ column_type │ null │ key │ default │ extra │
+├───────────────┼─────────────┼──────┼─────┼─────────┼───────┤
+│ TimeUS        │ BIGINT      │ YES  │     │         │       │
+│ Lat           │ DOUBLE      │ YES  │     │         │       │
+│ Lng           │ DOUBLE      │ YES  │     │         │       │
+│ Alt           │ DOUBLE      │ YES  │     │         │       │
+│ Spd           │ DOUBLE      │ YES  │     │         │       │
+│ NSats         │ DOUBLE      │ YES  │     │         │       │
+│ HDop          │ DOUBLE      │ YES  │     │         │       │
+│ Status        │ DOUBLE      │ YES  │     │         │       │
+│ Roll          │ DOUBLE      │ YES  │     │         │       │
+│ Pitch         │ DOUBLE      │ YES  │     │         │       │
+│ Yaw           │ DOUBLE      │ YES  │     │         │       │
+│ msg_type      │ VARCHAR     │ YES  │     │         │       │
+│ inode         │ BIGINT      │ YES  │     │         │       │
+│ wall_ns       │ BIGINT      │ YES  │     │         │       │
+│ mavpackettype │ VARCHAR     │ YES  │     │         │       │
+│ Q1            │ DOUBLE      │ YES  │     │         │       │
+│ Q2            │ DOUBLE      │ YES  │     │         │       │
+│ Q3            │ DOUBLE      │ YES  │     │         │       │
+│ Q4            │ DOUBLE      │ YES  │     │         │       │
+│ RelHomeAlt    │ DOUBLE      │ YES  │     │         │       │
+│ RelOriginAlt  │ DOUBLE      │ YES  │     │         │       │
+│ C             │ DOUBLE      │ YES  │     │         │       │
+│ VN            │ DOUBLE      │ YES  │     │         │       │
+│ VE            │ DOUBLE      │ YES  │     │         │       │
+│ VD            │ DOUBLE      │ YES  │     │         │       │
+│ dPD           │ DOUBLE      │ YES  │     │         │       │
+│ PN            │ DOUBLE      │ YES  │     │         │       │
+│ PE            │ DOUBLE      │ YES  │     │         │       │
+│ PD            │ DOUBLE      │ YES  │     │         │       │
+│ GX            │ DOUBLE      │ YES  │     │         │       │
+│ GY            │ DOUBLE      │ YES  │     │         │       │
+│ GZ            │ DOUBLE      │ YES  │     │         │       │
+│ OH            │ DOUBLE      │ YES  │     │         │       │
+│ DesRoll       │ DOUBLE      │ YES  │     │         │       │
+│ DesPitch      │ DOUBLE      │ YES  │     │         │       │
+│ DesYaw        │ DOUBLE      │ YES  │     │         │       │
+│ AEKF          │ DOUBLE      │ YES  │     │         │       │
+│ I             │ DOUBLE      │ YES  │     │         │       │
+│ GMS           │ DOUBLE      │ YES  │     │         │       │
+│ GWk           │ DOUBLE      │ YES  │     │         │       │
+│ GCrs          │ DOUBLE      │ YES  │     │         │       │
+│ VZ            │ DOUBLE      │ YES  │     │         │       │
+│ U             │ DOUBLE      │ YES  │     │         │       │
+└───────────────┴─────────────┴──────┴─────┴─────────┴───────┘
+┌──────────────────────────┐
+│          header          │
+├──────────────────────────┤
+│ --- ESTIMATOR DOMAIN --- │
+└──────────────────────────┘
+┌───────────────┬─────────────┬──────┬─────┬─────────┬───────┐
+│  column_name  │ column_type │ null │ key │ default │ extra │
+├───────────────┼─────────────┼──────┼─────┼─────────┼───────┤
+│ TimeUS        │ BIGINT      │ YES  │     │         │       │
+│ Roll          │ INTEGER     │ YES  │     │         │       │
+│ Pitch         │ INTEGER     │ YES  │     │         │       │
+│ Yaw           │ INTEGER     │ YES  │     │         │       │
+│ VN            │ INTEGER     │ YES  │     │         │       │
+│ VE            │ INTEGER     │ YES  │     │         │       │
+│ VD            │ INTEGER     │ YES  │     │         │       │
+│ VibeX         │ DOUBLE      │ YES  │     │         │       │
+│ VibeY         │ DOUBLE      │ YES  │     │         │       │
+│ VibeZ         │ DOUBLE      │ YES  │     │         │       │
+│ Clip          │ DOUBLE      │ YES  │     │         │       │
+│ GyrX          │ DOUBLE      │ YES  │     │         │       │
+│ GyrY          │ DOUBLE      │ YES  │     │         │       │
+│ GyrZ          │ DOUBLE      │ YES  │     │         │       │
+│ AccX          │ DOUBLE      │ YES  │     │         │       │
+│ AccY          │ DOUBLE      │ YES  │     │         │       │
+│ AccZ          │ DOUBLE      │ YES  │     │         │       │
+│ msg_type      │ VARCHAR     │ YES  │     │         │       │
+│ inode         │ BIGINT      │ YES  │     │         │       │
+│ wall_ns       │ BIGINT      │ YES  │     │         │       │
+│ mavpackettype │ VARCHAR     │ YES  │     │         │       │
+│ IMU           │ DOUBLE      │ YES  │     │         │       │
+│ I             │ DOUBLE      │ YES  │     │         │       │
+│ EG            │ DOUBLE      │ YES  │     │         │       │
+│ EA            │ DOUBLE      │ YES  │     │         │       │
+│ T             │ DOUBLE      │ YES  │     │         │       │
+│ GH            │ DOUBLE      │ YES  │     │         │       │
+│ AH            │ DOUBLE      │ YES  │     │         │       │
+│ GHz           │ DOUBLE      │ YES  │     │         │       │
+│ AHz           │ DOUBLE      │ YES  │     │         │       │
+└───────────────┴─────────────┴──────┴─────┴─────────┴───────┘
+┌───────────────────────┐
+│        header         │
+├───────────────────────┤
+│ --- SYSTEM DOMAIN --- │
+└───────────────────────┘
+┌───────────────┬─────────────┬──────┬─────┬─────────┬───────┐
+│  column_name  │ column_type │ null │ key │ default │ extra │
+├───────────────┼─────────────┼──────┼─────┼─────────┼───────┤
+│ TimeUS        │ BIGINT      │ YES  │     │         │       │
+│ Load          │ BIGINT      │ YES  │     │         │       │
+│ Mem           │ BIGINT      │ YES  │     │         │       │
+│ KHz           │ INTEGER     │ YES  │     │         │       │
+│ msg_type      │ VARCHAR     │ YES  │     │         │       │
+│ inode         │ BIGINT      │ YES  │     │         │       │
+│ wall_ns       │ BIGINT      │ YES  │     │         │       │
+│ mavpackettype │ VARCHAR     │ YES  │     │         │       │
+│ LR            │ BIGINT      │ YES  │     │         │       │
+│ NLon          │ BIGINT      │ YES  │     │         │       │
+│ NL            │ BIGINT      │ YES  │     │         │       │
+│ MaxT          │ BIGINT      │ YES  │     │         │       │
+│ ErrL          │ BIGINT      │ YES  │     │         │       │
+│ InE           │ BIGINT      │ YES  │     │         │       │
+│ ErC           │ BIGINT      │ YES  │     │         │       │
+│ SPIC          │ BIGINT      │ YES  │     │         │       │
+│ I2CC          │ BIGINT      │ YES  │     │         │       │
+│ I2CI          │ BIGINT      │ YES  │     │         │       │
+│ Ex            │ BIGINT      │ YES  │     │         │       │
+│ R             │ BIGINT      │ YES  │     │         │       │
+└───────────────┴─────────────┴──────┴─────┴─────────┴───────┘
+┌──────────────────────┐
+│        header        │
+├──────────────────────┤
+│ --- POWER DOMAIN --- │
+└──────────────────────┘
+┌───────────────┬─────────────┬──────┬─────┬─────────┬───────┐
+│  column_name  │ column_type │ null │ key │ default │ extra │
+├───────────────┼─────────────┼──────┼─────┼─────────┼───────┤
+│ TimeUS        │ BIGINT      │ YES  │     │         │       │
+│ Volt          │ DOUBLE      │ YES  │     │         │       │
+│ Amp           │ INTEGER     │ YES  │     │         │       │
+│ EnrgTot       │ DOUBLE      │ YES  │     │         │       │
+│ Temp          │ DOUBLE      │ YES  │     │         │       │
+│ msg_type      │ VARCHAR     │ YES  │     │         │       │
+│ inode         │ BIGINT      │ YES  │     │         │       │
+│ wall_ns       │ BIGINT      │ YES  │     │         │       │
+│ mavpackettype │ VARCHAR     │ YES  │     │         │       │
+│ Inst          │ BIGINT      │ YES  │     │         │       │
+│ VoltR         │ DOUBLE      │ YES  │     │         │       │
+│ Curr          │ DOUBLE      │ YES  │     │         │       │
+│ CurrTot       │ DOUBLE      │ YES  │     │         │       │
+│ Res           │ DOUBLE      │ YES  │     │         │       │
+│ RemPct        │ BIGINT      │ YES  │     │         │       │
+│ H             │ BIGINT      │ YES  │     │         │       │
+│ SH            │ BIGINT      │ YES  │     │         │       │
+└───────────────┴─────────────┴──────┴─────┴─────────┴───────┘
+┌──────────────────────────────┐
+│            header            │
+├──────────────────────────────┤
+│ --- COMMUNICATION DOMAIN --- │
+└──────────────────────────────┘
+┌───────────────┬─────────────┬──────┬─────┬─────────┬───────┐
+│  column_name  │ column_type │ null │ key │ default │ extra │
+├───────────────┼─────────────┼──────┼─────┼─────────┼───────┤
+│ TimeUS        │ BIGINT      │ YES  │     │         │       │
+│ RSSI          │ INTEGER     │ YES  │     │         │       │
+│ RemRSS        │ INTEGER     │ YES  │     │         │       │
+│ TxPwr         │ INTEGER     │ YES  │     │         │       │
+│ msg_type      │ VARCHAR     │ YES  │     │         │       │
+│ inode         │ BIGINT      │ YES  │     │         │       │
+│ wall_ns       │ BIGINT      │ YES  │     │         │       │
+│ mavpackettype │ VARCHAR     │ YES  │     │         │       │
+│ C1            │ BIGINT      │ YES  │     │         │       │
+│ C2            │ BIGINT      │ YES  │     │         │       │
+│ C3            │ BIGINT      │ YES  │     │         │       │
+│ C4            │ BIGINT      │ YES  │     │         │       │
+│ C5            │ BIGINT      │ YES  │     │         │       │
+│ C6            │ BIGINT      │ YES  │     │         │       │
+│ C7            │ BIGINT      │ YES  │     │         │       │
+│ C8            │ BIGINT      │ YES  │     │         │       │
+│ C9            │ BIGINT      │ YES  │     │         │       │
+│ C10           │ BIGINT      │ YES  │     │         │       │
+│ C11           │ BIGINT      │ YES  │     │         │       │
+│ C12           │ BIGINT      │ YES  │     │         │       │
+│ C13           │ BIGINT      │ YES  │     │         │       │
+│ C14           │ BIGINT      │ YES  │     │         │       │
+└───────────────┴─────────────┴──────┴─────┴─────────┴───────┘
