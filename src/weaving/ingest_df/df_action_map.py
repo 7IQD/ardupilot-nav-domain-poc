@@ -1,157 +1,30 @@
-#!/usr/bin/env python3
-"""
-df_action_map.py
-The Authority on Domain Schemas.
-Maps raw ArduPilot DataFlash message fields to standardized Warehouse tables.
-
-Architecture Contract:
-• Architects discover fields from MAVLink/DataFlash logs.
-• The Refiner ONLY materializes columns authorized here.
-• This guarantees deterministic schemas and zero data leakage.
-"""
+import json
+from pathlib import Path
 
 class DFActionMap:
     """
-    Canonical schema authority for the DataFlash warehouse.
+    Domain routing service for ArduPilot telemetry.
+    Loads a JSON policy and assigns domains to MsgTypes.
     """
 
-    # -------------------------------------------------------
-    # Message Routing
-    # Which DataFlash messages belong to each domain
-    # -------------------------------------------------------
-    MSG_MAP = {
-        # Navigation domain
-        "NAV": [
-            "ATT",
-            "POS",
-            "GPS",
-            "AHR2",
-            "XKF1"
-        ],
+    def __init__(self, json_path=None):
+        # Default path: next to this file
+        self.json_path = Path(json_path or Path(__file__).parent / "FMT_Library.json")
+        with open(self.json_path, "r") as f:
+            self.policy = json.load(f)
 
-        # Estimator / sensor fusion domain
-        "EST": [
-            "NKF1",
-            "VIBE",
-            "IMU"
-        ],
+        # Flatten for quick lookup: MsgType -> domain
+        self.msg_to_domain = {}
+        for domain, msgs in self.policy.items():
+            for msg in msgs.keys():
+                self.msg_to_domain[msg.upper()] = domain
 
-        # System health domain
-        "SYS": [
-            "PM",
-            "MCU",
-            "POWR"
-        ],
+    def get_domains(self):
+        return ["NAV_DOMAIN", "EST_DOMAIN", "POWER_DOMAIN", "COM_DOMAIN", "SYS_DOMAIN"]
 
-        # Electrical / battery telemetry
-        "POWER": [
-            "BAT"
-        ],
-
-        # Communications / RC link
-        "COM": [
-            "RADIO",
-            "RCIN",
-            "RCOUT"
-        ]
-    }
-
-    # -------------------------------------------------------
-    # Canonical Domain Schemas
-    # (Exact DataFlash field names)
-    # -------------------------------------------------------
-    DOMAINS = {
-        # Navigation / flight path
-        "NAV": [
-            "TimeUS",
-            "Lat",
-            "Lng",
-            "Alt",
-            "Spd",
-            "NSats",
-            "HDop",
-            "Status",
-            "Roll",
-            "Pitch",
-            "Yaw"
-        ],
-
-        # Estimator + IMU + vibration telemetry
-        "EST": [
-            "TimeUS",
-            # attitude
-            "Roll",
-            "Pitch",
-            "Yaw",
-            # velocity estimates
-            "VN",
-            "VE",
-            "VD",
-            # vibration telemetry (VIBE message)
-            "VibeX",
-            "VibeY",
-            "VibeZ",
-            "Clip",
-            # IMU telemetry (IMU message)
-            "GyrX",
-            "GyrY",
-            "GyrZ",
-            "AccX",
-            "AccY",
-            "AccZ"
-        ],
-
-        # Autopilot system health
-        "SYS": [
-            "TimeUS",
-            "Load",
-            "Mem",
-            "KHz"
-        ],
-
-        # Power system
-        "POWER": [
-            "TimeUS",
-            "Volt",
-            "Amp",
-            "EnrgTot",
-            "Temp"
-        ],
-
-        # Telemetry / RC link
-        "COM": [
-            "TimeUS",
-            "RSSI",
-            "RemRSS",
-            "TxPwr"
-        ]
-    }
-
-    # -------------------------------------------------------
-    # Utility Methods
-    # -------------------------------------------------------
-
-    @staticmethod
-    def get_msg_types(domain: str):
-        """Return MAVLink/DataFlash message types for a domain."""
-        if not domain:
-            return []
-        return DFActionMap.MSG_MAP.get(domain.upper(), [])
-
-    @staticmethod
-    def get_columns(domain: str):
-        """Return canonical warehouse columns for a domain."""
-        if not domain:
-            return []
-        return DFActionMap.DOMAINS.get(domain.upper(), [])
-
-    @staticmethod
-    def get_domains():
+    def get_domain_for_msg(self, msg_name):
         """
-        Return all domains.
-        MISC is included as a fallback safety domain.
+        Returns the domain for a given MsgType, defaulting to SYS_DOMAIN.
         """
-        domains = list(DFActionMap.DOMAINS.keys())
-        if "MISC" not in domains:
-            domains.append("MISC")
-        return domains
+        n = msg_name.upper()
+        return self.msg_to_domain.get(n, "SYS_DOMAIN")

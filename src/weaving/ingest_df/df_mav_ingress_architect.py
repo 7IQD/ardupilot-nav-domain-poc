@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 df_mav_ingress_architect.py
-Authoritative MAVLink Ingress - Protocol Layer
+FMT-Aligned Lossless Ingress
 """
 
 import os
@@ -9,81 +9,72 @@ import time
 import pandas as pd
 from pymavlink import mavutil
 from vault.clerk_df import ClerkDF
+from weaving.ingest_df.df_action_map import DFActionMap
 
 class DFIngressMavArchitect:
-    def __init__(self, bin_path, domain_key, msg_types, limit=5000):
+    def __init__(self, bin_path, fmt_registry, action_map, limit=5000):
         self.bin_path = bin_path
-        self.domain_key = domain_key.upper()
-        self.msg_types = msg_types
+        self.fmt_registry = fmt_registry
         self.limit = limit
         self.buffer = []
         self.clerk = ClerkDF()
+        self.action_map = action_map
 
     def flush(self):
-        """Writes current buffer to a unique Parquet shard in Vault B."""
+        """Writes buffer to domain-specific shards in Vault B."""
         if not self.buffer:
             return
 
-        # Convert buffer to DataFrame - pandas handles the varying columns automatically
         df = pd.DataFrame(self.buffer)
 
-        # Create a unique filename using nanoseconds to avoid collisions
-        shard_name = f"{self.domain_key.lower()}_shard_{time.time_ns()}.parquet"
-        target_path = os.path.join(self.clerk.vault_b, shard_name)
+        for domain, group in df.groupby("domain"):
+            shard_name = f"{domain.lower()}_shard_{time.time_ns()}.parquet"
+            target_path = os.path.join(self.clerk.vault_b, shard_name)
 
-        # Ensure the directory exists and write to Parquet
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-        df.to_parquet(target_path, index=False)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            group.to_parquet(target_path, index=False)
 
-        # Clear buffer for next batch
         self.buffer = []
 
     def process_flight(self):
-        """
-        AUTHORITATIVE DECODE:
-        Uses mavutil to extract all fields. Metadata is prepended,
-        and the raw message payload is unpacked entirely.
-        """
+        """Authoritative sweep: captures every BIN message."""
         if not os.path.exists(self.bin_path):
             print(f"❌ BIN NOT FOUND: {self.bin_path}")
             return
 
-        print(f"🚀 Ingress Decode [{self.domain_key}]")
-
-        # Load the BIN with ardupilotmega dialect for full message support
         mlog = mavutil.mavlink_connection(self.bin_path, dialect="ardupilotmega")
-        inode = 0
+        print(f"🚀 Ingress: Processing {len(self.fmt_registry)} MsgTypes...")
 
+        inode = 0
         while True:
             msg = mlog.recv_msg()
             if msg is None:
                 break
 
-            msg_type = msg.get_type()
+            m_type = msg.get_type()
 
-            # Filter based on the Domain Mapping (e.g., if POWER, only take BAT)
-            if msg_type not in self.msg_types:
+            # Skip metadata/protocol messages (FMT handled separately)
+            if m_type in ["FMT", "FMTU", "UNIT", "MULT", "PARM"]:
                 continue
 
             inode += 1
             raw = msg.to_dict()
+            domain = self.action_map.get_domain_for_msg(m_type)
 
-            # THE LOSSLESS WRAPPER
-            # We explicitly define tracking keys, then dump the rest of the message payload
+            # Build Fact-Master ready row
             row = {
-                "msg_type": msg_type,
+                "domain": domain,
+                "msg_type": m_type,
                 "TimeUS": raw.get("TimeUS", int(getattr(msg, "_timestamp", 0) * 1e6)),
                 "inode": inode,
                 "wall_ns": time.time_ns(),
-                **raw  # <--- Dumps Roll, Pitch, Volt, Curr, etc. into the row
+                **raw
             }
 
             self.buffer.append(row)
 
-            # Flush periodically to keep memory usage low
             if len(self.buffer) >= self.limit:
                 self.flush()
 
-        # Final flush for remaining messages
-        self.flush()
-        print(f"✅ {self.domain_key} ingress complete ({inode} messages).")
+        self.flush()  # Final sweep
+        print(f"✅ Ingress Complete. Shards written to Vault B.")

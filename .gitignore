@@ -34,3 +34,7 @@ bin/vault/df_source/
 bin/vault/vault_a/
 bin/vault/vault_c/
 src/ingress/bin/
+*.duckdb
+
+# --- Legacy & Archive ---
+src/archive/

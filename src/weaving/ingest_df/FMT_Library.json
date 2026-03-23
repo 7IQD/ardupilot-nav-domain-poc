@@ -1,0 +1,75 @@
+{
+  "_METADATA": {
+    "version": "1.0.0",
+    "domain_authority": "ArduPilot_Nav_v4.5",
+    "_POC_SCOPE": ["ATT", "GPS", "XKF1"]
+  },
+  "NAV_DOMAIN": {
+    "ATT": {"type": "Qfff", "desc": "Vehicle orientation (Roll, Pitch, Yaw) → Attitude Stability"},
+    "GPS": {"type": "QBIHBccLL", "desc": "Primary Position + Satellite Health (NSats, HDop) → Signal Reliability"},
+    "GPSS": {"type": "QBHff", "desc": "GPS Secondary: Status and SatCount → Multi-Receiver Consistency"},
+    "AHR2": {"type": "QfffLL", "desc": "Backup AHRS Estimate → Redundant Attitude Ground Truth"},
+    "XKF1": {"type": "Qccfffffff", "desc": "EKF3 Fused State (Pos, Vel) → Estimator Health & Drift Detection"},
+    "XKF2": {"type": "Qfffffff", "desc": "EKF3 Dynamics (Accel) → Maneuver Intensity Monitoring"},
+    "XKF3": {"type": "Qfffffff", "desc": "EKF3 Innovations → Sensor Consistency & Reject Benchmarking"},
+    "XKF4": {"type": "Qfffffff", "desc": "EKF3 Velocity: Earth-frame velocity → Ground Speed Integrity"},
+    "XKF5": {"type": "Qfffffff", "desc": "EKF3 Magnetic: Field Variance → Heading Drift Root Cause"},
+    "XKFS": {"type": "Qccfffffff", "desc": "EKF3 Static States: Biases → Sensor Calibration Health"},
+    "XKQ": {"type": "Qffff", "desc": "EKF3 Quaternions: Orientation State → High-Rate Rotation Audit"},
+    "XKT": {"type": "Qff", "desc": "EKF3 Vertical: Alt and Vertical Velocity → Z-axis Stability"},
+    "XKTV": {"type": "Qff", "desc": "EKF3 Velocity Variance → Innovation Gate Monitoring"},
+    "XKV1": {"type": "Qff", "desc": "EKF3 Velocity Est 1: Primary Lane → Lane Integrity"},
+    "XKV2": {"type": "Qff", "desc": "EKF3 Velocity Est 2: Secondary Lane → Lane Switch Auditing"},
+    "ANG": {"type": "Qfff", "desc": "Target vs Actual Angle → Tracking Error Analysis"},
+    "RATE": {"type": "Qfff", "desc": "Target vs Actual Rate → Control Loop Stress Metrics"},
+    "CTUN": {"type": "Qfffffff", "desc": "Control Tuning: Alt and Throttle → Vertical Power Performance"},
+    "ORGN": {"type": "QLLe", "desc": "Home/EKF Origin: Global Reference → Coordinate Frame Anchor"},
+    "PID1": {"type": "Qfff", "desc": "PID Roll: Desired, Actual, Error → Basic Axis Audit"},
+    "PID2": {"type": "Qfff", "desc": "PID Pitch: Desired, Actual, Error → Basic Axis Audit"},
+    "PID3": {"type": "Qfff", "desc": "PID Yaw: Desired, Actual, Error → Basic Axis Audit"},
+    "DCM": {"type": "Qffffffff", "desc": "DCM Matrix: Orthogonality and Error → Matrix Health"},
+    "POS": {"type": "QLLeee", "desc": "Global Position Estimate: Fused Lat/Lng → Path Precision Tracking"},
+    "GPA": {"type": "QCCCCBB", "desc": "GPS Accuracy: HDOP, VDOP → Position Confidence Scoring"},
+    "PIDA": {"type": "Qffff", "desc": "PID Roll Controller → Full Term Gain Breakdown"},
+    "PIDP": {"type": "Qffff", "desc": "PID Pitch Controller → Full Term Gain Breakdown"},
+    "PIDR": {"type": "Qffff", "desc": "PID Roll Rate Controller → Dynamic Response Audit"},
+    "PIDY": {"type": "Qffff", "desc": "PID Yaw Rate Controller → Dynamic Response Audit"}
+  },
+  "EST_DOMAIN": {
+    "IMU": {"type": "Qffffff", "desc": "Primary Motion (Accel/Gyro) → Inertial Ground Truth"},
+    "MAG": {"type": "Qhhh", "desc": "Magnetometer: Raw Field Vectors → Compass Integrity"},
+    "BARO": {"type": "Qff", "desc": "Barometer: Pressure and Alt → Vertical Drift Reference"},
+    "VIBE": {"type": "Qfff", "desc": "Vibration Analysis (X,Y,Z) → Mechanical Health & Clipping Audit"},
+    "RFND": {"type": "Qf", "desc": "Rangefinder: Laser/Sonar Distance → AGL Precision"},
+    "ACC": {"type": "Qfff", "desc": "Raw Accelerometer Data → Vibration Root Cause"},
+    "ACC2": {"type": "Qfff", "desc": "Secondary Accelerometer Data → Sensor Disagreement"},
+    "GYR": {"type": "Qfff", "desc": "Raw Gyroscope Data → Angular Rate Noise Audit"},
+    "GYR2": {"type": "Qfff", "desc": "Secondary Gyroscope Data → Sensor Disagreement"}
+  },
+  "POWER_DOMAIN": {
+    "BAT": {"type": "Qff", "desc": "Battery: Voltage and Current → Power Supply Health"},
+    "RCOU": {"type": "HHHHHHHH", "desc": "PWM Motor Outputs (1-8) → Actuator Saturation Audit"},
+    "ESC": {"type": "Qffff", "desc": "ESC Telemetry: RPM and Voltage → Motor Efficiency"},
+    "POWR": {"type": "QfH", "desc": "System Power: VCC and I2C → Board Electrical Stability"},
+    "ESCX": {"type": "QffHhB", "desc": "Extended ESC: Temp and Error Flags → Thermal Stress"},
+    "RCO2": {"type": "HHHHHHHH", "desc": "Secondary Motor Outputs (9-16) → Auxiliary Actuators"},
+    "SURF": {"type": "Qfffff", "desc": "Control Surface: Servo Positions → Aerodynamic Load"}
+  },
+  "COM_DOMAIN": {
+    "RCIN": {"type": "HHHHHHHH", "desc": "Radio Input: Channels 1-8 → Pilot Command Audit"},
+    "RSSI": {"type": "f", "desc": "Receiver Signal Strength → Link Margin Health"},
+    "MAV": {"type": "QB", "desc": "MAVLink: Heartbeat and Packets → GCS Link Integrity"},
+    "MAVC": {"type": "QB", "desc": "MAVLink: Control Channel → Command Latency Audit"},
+    "RAD": {"type": "BBHBBHH", "desc": "Radio Modem: Signal and Noise → RF Interference Detection"},
+    "RADIO": {"type": "BBHBBHH", "desc": "Telemetry Radio: Error Rates → Data Link Consistency"},
+    "GDT": {"type": "Qf", "desc": "Ground Data Terminal: Link Latency → Real-time Control Safety"},
+    "RCI2": {"type": "HHHHHHHH", "desc": "Secondary Radio Input (9-16) → Backup Link"},
+    "UART": {"type": "QIIHH", "desc": "Serial Port: Buffer Usage → System Communication Stress"}
+  },
+  "SYS_DOMAIN": {
+    "MSG": {"type": "QZ", "desc": "System Message: Textual Log Alerts → Event Chronology"},
+    "MODE": {"type": "QB", "desc": "Flight Mode (Auto, Loiter) → Navigation Logic Context"},
+    "EV": {"type": "Q", "desc": "System Binary Events → State Transition Triggers"},
+    "UKWN": {"type": "Q", "desc": "Unknown: Placeholder for Custom/Vendor Messages"}
+  }
+}

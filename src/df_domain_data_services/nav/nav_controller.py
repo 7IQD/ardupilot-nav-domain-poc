@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from .nav_data_service import NavDataService
 from .nav_stats import NavStatsEngine
-from .nav_action_map import NavActionMap
+from .nav_verdict_map import NavVerdictMap
 
 """
 NavController
@@ -60,7 +60,7 @@ class NavController:
 
         # 4. Run rule evaluation via the Action Map
         # Maps the stats to human-readable verdicts (GREEN/YELLOW/RED)
-        evaluation = NavActionMap.evaluate(stats)
+        evaluation = NavVerdictMap.evaluate(stats)
 
         # 5. Return full audit result
         return {
