@@ -29,7 +29,7 @@ def build_fmt_registry(bin_path):
     return registry
 
 def check_bin_replication(vault_b):
-    """Old-style row-count check per domain shard."""
+    """row-count check per domain shard."""
     domains = ["NAV_DOMAIN", "EST_DOMAIN", "POWER_DOMAIN", "COM_DOMAIN", "SYS_DOMAIN"]
     vault_path = Path(vault_b)
 
@@ -79,7 +79,7 @@ def main():
     # --- BIN replication check ---
     check_bin_replication(clerk.vault_b)
 
-    print("🏁 Stage 4: Ingress Complete. Ready for df_refinery.")
+    print("🏁 Stage 4: Ingress Complete")
 
 if __name__ == "__main__":
     main()
