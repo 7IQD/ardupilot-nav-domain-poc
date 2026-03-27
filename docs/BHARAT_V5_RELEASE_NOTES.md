@@ -1,8 +1,4 @@
-Perfect. Here's a **GSoC-ready, mentor-focused `BHARAT_V5_RELEASE_NOTES.md`** draft that you can drop straight into your repo:
-
----
-
-# BHARAT™ V5.0 — Navigation Domain Evidence Engine
+Navigation Domain Evidence Engine
 
 **Technical Milestone:** Lightweight, scalable, protocol-agnostic observability layer for ArduPilot SITL.
 
