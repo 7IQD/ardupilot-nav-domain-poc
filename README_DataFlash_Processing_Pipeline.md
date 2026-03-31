@@ -1,179 +1,111 @@
-# Data Flash: DataFlash_Processing_Pipeline  — How It Actually Works
+# NAV DataFlash Pipeline
 
-# Upon ingestion, a raw ArduPilot .BIN log is immediately cleaned and transformed into mission-aware Parquet files, which are then loaded into the DuckDB Warehouse and materialized into specialized Fact Tables—including fact_nav, fact_est, fact_sys, fact_power, and fact_communication.
+This project captures ArduPilot `.BIN` file logs are segregated into domains (nav, est, power, sys and com) to answer;what, where and why it happened in the flight.Everything remains traceable back to the original telemetry.
 
-![alt text](images/duckdb_tables.PNG)
+---
 
-# The 5-Step Processing Flow
+## How the flow works
 
-## 1️⃣ Extraction — Convert BIN to Structured Data
+We start with the raw BIN log and move step by step:
 
-**Command**
+BIN → ingestion → shards → NAV master → DuckDB → analysis → final output
+
+First, the log is read using pymavlink and broken into domain-specific parquet shards (NAV, etc).
+These are stored in `vault_b`. At this stage, nothing is modified — it's just structured.
+
+Then we build a NAV master dataset.
+Here we assign a `mission_id` and split the data into small partitions using `segment_id`.
+This gives us a clean, queryable dataset.
+
+From there, everything runs inside DuckDB.
+
+## Architecture
+![DF Architecture](images/DF_architecture.png)
+
+## What happens in the database
+
+The database is where the actual logic lives.
+
+We combine all segments into a single `mission_master` table.
+This is the full mission timeline.
+
+From that, we create **windows** based on how the GPS signal (NSats) behaves over time.
+
+A window is simply:
+> a continuous period where the signal stays in the same state
+
+Example:
+NSats = 3 → 0 → 12 → 7 → 0 → 12
+
+This naturally becomes multiple windows. No assumptions, just grouping what the signal already does.
+
+These windows are stored in `mission_nsat_windows`.
+
+---
+
+## Turning data into meaning
+
+Once we have windows:
+
+- `rule_master` defines what different signal conditions mean
+- `nav_meta_log` stores exact anchors (where to look in the data)
+- the service layer reads these anchors and pulls the actual telemetry slice
+
+Then we run a simple pipeline:
+
+window → check → stats → label → verdict
+
+And store the result in:
+`nav_ai_assistance`
+
+This final table is the answer layer — it contains:
+- what was detected
+- supporting data
+- explanation
+
+---
+
+## core
+
+We **separate signal from interpretation**:
+
+- windows = what actually happened
+- rules = what it means
+
+This keeps everything:
+- deterministic
+- explainable
+- reusable
+
+---
+
+## How to run
+
+Right now, the pipeline starts from the main DataFlash runner.
+
+Step 1 — Run ingestion + base pipeline
+
 python3 src/runner/df_main.py
 
-**What it does**
-- Reads `.BIN` logs from: bin/vault/df_source/
-- Splits raw binary messages into domain-based datasets:
-- NAV
-- SYS
-- POW
-- etc.
+This reads the BIN log and prepares the initial dataset.
 
-**Output**
-bin/vault/vault_b/
-Temporary `.parquet` shard files.
+Step 2 — Build Shards(parquet files) and convert them into dataset segments (duckdb)
 
-**Important**
-- These files are intermediate.
-- They do NOT yet have a Mission ID.
-- Do not run refinement before this finishes.
+create_domain_master_db.sh
+
+
+This assigns mission_id and creates the partitioned NAV dataset.
+
+Step 3 — Run analysis pipeline (SQL + AI builder)
+
+This includes:
+- building mission tables (mission_master, windows, meta log)
+- running the AI assistance builder
+
+nav_ai_assistance_builder.py
+
 
 ---
 
-## 2️⃣ Refinement — Add Identity & Time Alignment
-
-**Command**
-python3 bin/df_refinery.py
-
-**What it does**
-- Reads shard files from `vault_b`
-- Generates a unique `MISSION_ID`
-- Anchors timestamps to Time = 0
-- Stamps every row with that ID
-
-**Output**
-bin/vault/warehouse_df/
-Permanent Parquet master files.
-
-**After this**
-- `vault_b` is cleaned.
-- Data is now mission-aware and stable.
-
----
-
-## 3️⃣ Projection — Build SQL Tables
-
-**Command**
-python3 src/runner/create_views.py
-
-**What it does**
-- DuckDB reads Parquet masters
-- Builds physical `fact_` tables
-- Builds `view_` / `ui_` views
-
-**Output**
-bin/vault/warehouse_df/drone_df_views.db
-
-Now the data is SQL-queryable. This database is the single source of truth.
-
----
-
-## 4️⃣ Service — Start the API
-
-**Command**
-export PYTHONPATH=$PYTHONPATH:$(pwd)/src
-python3 src/df_apis/df_api_server.py
-
-**What it does**
-- Starts FastAPI on port 8000
-- Exposes endpoints like:
-/forensic/missions
-/domain/nav
-
-The backend is now live.
-
----
-
-## 5️⃣ UI — Start the Dashboard
-
-**Command**
-
-The backend is now live.
-
----
-
-## 5️⃣ UI — Start the Dashboard
-
-**Command**
-cd engine3_dashboard
-npm run dev
-
-
-**What it does**
-- Launches Svelte on port 5173
-- Fetches data from FastAPI
-- Displays historical flight data
-
-Frontend depends entirely on the API being live.
-
----
-
-# Operational Rules (Non-Negotiable)
-
-### 1. Always Run From Project Root
-All scripts assume correct root detection.
-
----
-
-### 2. Never Run Extraction and Refinement Together
-`df_main.py` must fully complete
-before `df_refinery.py` runs.
-
----
-
-### 3. Canonical Database
-All queries must target:bin/vault/warehouse_df/drone_df_views.db
-
----
-
-### 4. Naming Convention
-
-| Type | Prefix |
-|------|--------|
-| Fact Tables | `fact_` |
-| SQL Views | `view_` or `ui_` |
-
----
-
-### 5. Mission ID Type
-`MISSION_ID` is a **string**.
-
-Example:MISSION_1739461234
-
-Never treat it as an integer.
-
----
-
-### 6. Live vs Historical
-
-| Route | Data Source |
-|-------|------------|
-| `/sitl` | Live stream (socket-based) |
-| `/drone` | Historical (DuckDB-based) |
-
----
-
-# System Mental Model (Simple Version)
-BIN file
-↓
-Structured Parquet
-↓
-Mission-stamped Masters
-↓
-DuckDB Tables
-↓
-FastAPI
-↓
-Svelte Dashboard
-
-That’s the entire system.
-
-No hidden paths.
-No parallel pipelines.
-No alternate databases.
-
----
-
-**This document is the operational contract.**
-If something breaks, start at Step 1 and verify each stage in order.
-
+Note:
+The pipeline is being simplified, and in future versions this will be unified into a single entry point.
