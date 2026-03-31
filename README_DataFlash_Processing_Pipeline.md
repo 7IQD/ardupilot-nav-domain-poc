@@ -20,7 +20,7 @@ This gives us a clean, queryable dataset.
 From there, everything runs inside DuckDB.
 
 ## Architecture
-![DF Architecture](images/DF_architecture.png)
+![DF Architecture](images/df_architecture.png)
 
 ## What happens in the database
 
