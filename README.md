@@ -1,66 +1,129 @@
-# **Navigation Domain POC — Multi-Domain Analytics**
+# AI Assisted NAV Log Diagnosis and Root Cause Detection
+
+## Concept
+
+During a SITL run, MAVLink telemetry arrives as mixed, asynchronous streams across Navigation, System, and Sensor domains. These streams provide a full snapshot of the vehicle state but are difficult to analyze individually or correlate across domains.
 
 ---
 
-## The Concept
+## Problem
 
-In a standard SITL run, telemetry streams arrive as mixed MAVLink packets, including Navigation, System, and Sensor data. The packets come asynchronously and at different rates, all combined as a single stream providing a snapshot of the drone system status. The aim is to capture all MAVLink packets **without dropping any bytes** and organize them into structured **Domain Data Lakes** (time-aligned files), allowing developers to analyze each domain individually and see how domains interact with each other.
-
----
-
-## The Problem
-
-Current SITL runs provide a complete snapshot of all telemetry streams from Navigation, System, and Sensor domains in a mixed, asynchronous manner. Developers cannot easily examine how a single stream is performing or correlate it with other domains. This makes it difficult to evaluate estimator behavior, tune sensor parameters, or assess system performance across a flight.
+Current workflows expose telemetry as a combined stream, making it hard to isolate domain-specific behavior, evaluate estimator performance, or trace issues across subsystems. Analysis often becomes manual and inconsistent.
 
 ---
 
-## The Solution
+## Solution
 
-The problem is addressed by capturing the incoming streams of packets. Once captured with almost zero loss, we perform **re-alignment in a staggered, two-stage approach**.
+This project captures MAVLink packets without loss and organizes them into time-aligned, domain-specific datasets. The architecture enables:
 
-### First Stage-Engine-1
+- Domain-level analysis (NAV, SYS, SENSOR)
+- Temporal alignment across signals
+- Cross-domain correlation when required
 
-During the **initial run**, all incoming MAVLink packets are captured and separated by domain: Navigation → `nav.parquet`, System → `system.parquet`, Sensor → `sensor.parquet`. This allows developers to view each domain independently and understand basic behavior.
+The same design can be extended to other domains, but this repository focuses on the **NAV domain as a proof-of-concept for AI-assisted diagnosis**.
 
-### Second Stage-Engine-2
-
-During the **second run**, every packet is assigned a **Time-ID** using the file inode and a high-resolution timestamp. This temporal alignment prepares the data for detailed intra-domain and inter-domain analysis. Developers can now correlate events across domains, evaluate estimator performance, tune sensor parameters, and improve overall system behavior.
-
-### Third Stage-Engine-3
-
-During the SITL refinement run, data is captured and segregated for each domain and stored in master parquet files in the DuckDB database. Additionally, to obtain the drone perspective, the **DataFlash (.BIN) file is cleaned to remove noise, duplicates, and corrupt entries, and converted to a structured format through a separate DF run**. Both data sources — `domain_sitl_master.parquet` and `domain_df_master.parquet` — are then exposed as API services for scorecard generation and domain and multi-domain causal analysis through the domain dashboard.
+It processes ArduPilot `.BIN` logs to build a deterministic, explainable pipeline that answers:
+**what happened, where it happened, and why it happened** during a flight — with full traceability to the original telemetry.
 
 ---
 
-## Benefit
+## How the flow works
 
-This system makes it easier for developers to work with SITL telemetry by providing clear, structured data for analysis. Developers can:
+The pipeline transforms raw logs step by step:
 
-* Analyze each domain individually and compare one domain against another to understand interactions and performance.
-* Examine cross-domain correlations to spot issues or dependencies.
-* Analyze runs in a repeatable way, reducing manual work and guesswork.
-* Use simple queries to explore performance, fine-tune parameters, and validate estimators.
+BIN → ingestion → shards → NAV master → DuckDB → analysis → final output
 
----
-
-## Telemetry Snapshots
+- The `.BIN` log is parsed using pymavlink and split into domain-specific parquet shards
+- These shards are stored without modification to preserve raw telemetry
+- A NAV master dataset is created using `mission_id` and segmented using `segment_id`
+- The entire analysis runs inside DuckDB for efficient querying and reproducibility
 
 ---
 
-## Telemetry Snapshots in Sequence of Flow
-## Telemetry Snapshots in Sequence of Flow
-## Telemetry Snapshots in Sequence of Flow
+## Architecture
 
-![Raw Stream](images/raw_stream.PNG)          # raw MAVLink packets
-![Initial Set-up](images/initial_set_up.PNG)  # SITL initial setup
-![Heartbeat](images/hearbeat.PNG)            # periodic system heartbeat
-![Mission Closed](images/mission_closed.PNG) # mission end
-![Raw Domain Truth](images/raw_domain_truth.PNG)  # domain_master.parquet files separated by domain
-![Domain Data Parquet](images/domain_data_parquet.PNG)  # pre-refinement Parquet snapshot
-![Domain Data](images/domain_data.PNG)       # preview of fact tables
-![Refinery Run](images/refinery_run.PNG)     # refinement in action
-![DuckDB Tables](images/duckdb_tables.PNG)   # final DB tables
+![DF Architecture](images/df_architecture.png)
+
+---
+
+## What happens in the database
+
+The database is where structured reasoning is built.
+
+- `mission_master` represents the full mission timeline
+- `mission_nsat_windows` stores state-change windows based on NSats behavior
+
+A window is defined as a continuous period where signal conditions remain stable.
+
+Example:
+NSats = 3 → 0 → 12 → 7 → 0 → 12
+
+This naturally creates multiple windows without assumptions.
+
+---
+
+## Turning data into meaning
+
+Once windows are created:
+
+- `rule_master` defines interpretation logic
+- `nav_meta_log` stores exact anchors (TimeUS, inode ranges)
+- The service layer retrieves bounded telemetry from these anchors
+
+The pipeline then executes:
+window → check → stats → label → verdict
+
+Results are stored in:
+nav_ai_assistance
 
 
+This table contains:
+
+- detected events
+- supporting telemetry evidence
+- structured explanations
+
+---
+
+## Core Design
+
+The system separates **signal from interpretation**:
+
+- windows → what actually happened
+- rules → what it means
+
+This ensures:
+
+- deterministic outputs
+- explainability
+- reproducibility
+
+---
+
+## How to run
+
+Step 1 — Ingestion and base pipeline
+
+`src/runner/df_main.py`
+
+Step 2 — Build domain datasets
+`create_domain_master_db.sh`
 
 
+Step 3 — Run analysis pipeline
+
+This builds:
+
+- mission tables
+- anomaly windows
+- meta logs
+- AI assistance outputs
+
+`nav_ai_assistance_builder.py`
+
+
+---
+
+## Note
+
+The pipeline is being simplified and will be unified into a single entry point in future versions.
