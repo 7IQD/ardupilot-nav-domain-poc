@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 df_main.py
-Dynamic Ingress Orchestrator (Object Zero + JSON-driven DFActionMap)
+Dynamic Ingress Orchestrator (JSON-driven DFActionMap)
 """
 
 import os
