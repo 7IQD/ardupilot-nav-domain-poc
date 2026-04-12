@@ -30,6 +30,8 @@ venv-*/
 .idea/
 
 # --- Block Data Vaults ---
+/bin/vault/vault_b/
+/bin/vault/warehouse_df/
 bin/vault/df_source/
 bin/vault/vault_a/
 bin/vault/vault_c/
