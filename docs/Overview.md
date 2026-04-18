@@ -87,7 +87,4 @@ Every artifact answers:
 
 ---
 
-**Status:** Mentor-ready Navigation POC
-**Intent:** Simple, clear, and reproducible telemetry analysis
 
-> For full technical flow, see [docs/README_FULL_FLOW.md]

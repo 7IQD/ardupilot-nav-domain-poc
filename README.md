@@ -36,7 +36,7 @@ BIN → ingestion → shards → NAV master → DuckDB → analysis → final ou
 - The `.BIN` log is parsed using pymavlink and split into domain-specific parquet shards
 - These shards are stored without modification to preserve raw telemetry
 - A NAV master dataset is created using `mission_id` and segmented using `segment_id`
-- The entire analysis runs inside DuckDB for efficient querying and reproducibility
+- The analysis runs inside DuckDB for efficient querying and reproducibility
 
 ---
 
@@ -58,7 +58,7 @@ A window is defined as a continuous period where signal conditions remain stable
 Example:
 NSats = 3 → 0 → 12 → 7 → 0 → 12
 
-This naturally creates multiple windows without assumptions.
+This creates multiple windows without assumptions.
 
 ---
 
@@ -80,7 +80,7 @@ nav_ai_assistance
 This table contains:
 
 - detected events
-- supporting telemetry evidence
+- supporting telemetry evidence (TimeUS and inode ranges)
 - structured explanations
 
 ---
@@ -122,7 +122,12 @@ This builds:
 `nav_ai_assistance_builder.py`
 
 
----
+## Current Status
+
+- Deterministic NAV RCA pipeline implemented
+- Window-based anomaly detection working
+- Evidence-linked outputs (TimeUS and inode) available
+- Final verdict generation (root cause, confidence, fixes) operational
 
 ## Note
 

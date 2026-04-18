@@ -1,81 +1,98 @@
 import os
-import pandas as pd
-from .nav_data_service import NavDataService
-from .nav_stats import NavStatsEngine
-from .nav_verdict_map import NavVerdictMap
+import duckdb
 
-"""
-NavController
-Purpose:
-- Orchestrate the NAV domain workflow
-- Filter SITL/GPS startup noise (First 10 seconds)
-- Execute the metrics -> evaluation pipeline
-- Return structured audit results for the UI/CLI
-"""
+from nav_data_service import NavDataService
+from nav_data_integrity_check import NavDataIntegrityCheck
+from nav_stats import NavStatsEngine
+from nav_labeler import NavLabeler
+from nav_verdict_map import NavVerdictMap
+
 
 class NavController:
 
-    def __init__(self, mission_id=None):
-        self.mission_id = mission_id
-        # Initialize the Data Service (DAO)
-        self.data_service = NavDataService(mission_id)
+    def __init__(self):
+        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
+        self.db_path = os.path.join(
+            BASE_DIR,
+            "bin/vault/warehouse_df/NAV_20260319_1332_parts/nav_master.duckdb"
+        )
 
-    def run_audit(self):
-        """
-        Executes the full NAV audit pipeline.
-        Returns: Dictionary containing mission stats and the final evaluation verdict.
-        """
+    def _pause(self):
+        input("\n[Press ENTER]\n")
 
-        # 1. Load NAV dataframe via the Data Service
-        # This handles the DuckDB connection and TimeUS sorting
-        df = self.data_service.get_state_report(self.mission_id)
+    def run(self):
 
-        if df is None or df.empty:
-            return {
-                "mission_id": self.mission_id,
-                "evaluation": {
-                    "verdict": "ERROR",
-                    "message": "No NAV flight data found in warehouse"
-                }
-            }
+        print("\n🚁 NAV RCA INTERACTIVE\n")
 
-        # 2. Remove SITL / GPS startup noise
-        # We ignore the first 10 seconds to allow the EKF to settle
-        # and GPS to achieve a valid 3D fix.
-        if "mission_time" in df.columns:
-            df = df[df["mission_time"] > 10].copy()
+        print(f"📂 Using DB: {self.db_path}\n")   # debug visibility
 
-        if df.empty:
-            return {
-                "mission_id": self.mission_id,
-                "evaluation": {
-                    "verdict": "ERROR",
-                    "message": "Insufficient data after filtering SITL startup noise"
-                }
-            }
+        con = duckdb.connect(self.db_path, read_only=True)
 
-        # 3. Compute NAV statistics (Drift, Stability, and Score)
-        # Calls the static methods in NavStatsEngine
-        stats = NavStatsEngine.calculate_metrics(df)
+        # STEP 1
+        print("STEP 1: Availability")
+        print(NavDataService.check_availability(con))
+        self._pause()
 
-        # 4. Run rule evaluation via the Action Map
-        # Maps the stats to human-readable verdicts (GREEN/YELLOW/RED)
-        evaluation = NavVerdictMap.evaluate(stats)
+        # STEP 2
+        print("STEP 2: Integrity")
+        print(NavDataIntegrityCheck.check_fields(con))
+        self._pause()
 
-        # 5. Return full audit result
-        return {
-            "mission_id": self.mission_id,
-            "sample_count": stats.get("sample_count", 0),
-            "stats": stats,
-            "evaluation": evaluation
-        }
+        # STEP 3-4
+        print("STEP 3–4: Distributions")
+        df_status, df_nsats = NavStatsEngine.get_distributions(con)
+        print(df_status)
+        print(df_nsats)
+        self._pause()
+
+        # STEP 5
+        print("STEP 5: Mismatch")
+        df_mismatch = NavLabeler.get_mismatches(con)
+        print(df_mismatch.head(10))
+        self._pause()
+
+        # STEP 6
+        print("STEP 6: Windows")
+        df_windows = NavLabeler.get_windows(con)
+        print(df_windows)
+        self._pause()
+
+        # STEP 7
+        print("STEP 7: Verdict\n")
+
+        verdict = NavVerdictMap.evaluate(df_windows)
+
+        print("🎯 FINAL RCA")
+        print(f"Root Cause: {verdict['root_cause']}")
+        print(f"Confidence: {verdict['confidence']}\n")
+
+        print("Fixes:")
+        for f in verdict["suggested_fixes"]:
+            print(f"- {f}")
+
+        print("\n📊 Evidence Table:\n")
+        print(f"{'Start':>10} {'End':>12} {'Dur(s)':>8} {'State':>10} {'FC':>10} {'Score':>6} {'Inodes':>20}")
+        print("-" * 85)
+
+        for ev in verdict["evidence_table"]:
+            print(
+                f"{ev['start_time']:>10} "
+                f"{ev['end_time']:>12} "
+                f"{ev['duration_sec']:>8} "
+                f"{ev['sensor_state']:>10} "
+                f"{ev['fc_state']:>10} "
+                f"{ev['score']:>6} "
+                f"{str(ev['start_inode']) + '-' + str(ev['end_inode']):>20}"
+            )
+
+        print("\n🔗 Chain Summary:\n")
+        for c in verdict["chain_summary"]:
+            print(f"→ {c}")
+
+        print("\n🏁 COMPLETE\n")
+
+        con.close()
+
 
 if __name__ == "__main__":
-    # Quick Integration Test
-    # Set a dummy mission_id or leave None to pull the master parquet
-    controller = NavController(mission_id=None)
-    result = controller.run_audit()
-
-    print(f"NAV Audit Result for Mission: {result['mission_id']}")
-    print(f"Verdict: {result['evaluation']['verdict']}")
-    print(f"Total Score: {result['stats'].get('total_score')}")
+    NavController().run()

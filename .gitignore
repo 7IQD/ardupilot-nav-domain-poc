@@ -40,3 +40,36 @@ src/ingress/bin/
 
 # --- Legacy & Archive ---
 src/archive/
+
+
+# -----------------------------
+# Docs (non-essential)
+# -----------------------------
+
+# Temp / learning / drafts
+docs/Temp-Learning/
+docs/**/Black_Book*
+docs/**/Concept-*
+docs/**/DIY-*
+docs/**/GSOC-Pitch*
+docs/**/Monte-Carlo*
+
+# Word / non-canonical formats
+*.docx
+*.txt
+
+# Duplicate / noisy files
+docs/**/UI/
+docs/**/Reports/
+docs/**/Dashboard*
+docs/**/*copy*
+docs/**/*old*
+
+# Experimental / scratch
+docs/**/Draft*
+docs/**/tmp*
+docs/**/test*
+
+# Keep repo clean
+*.log
+*.bak
