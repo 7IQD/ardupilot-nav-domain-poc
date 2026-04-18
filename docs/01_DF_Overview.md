@@ -1,4 +1,4 @@
-# NAV Log Diagnosis – Overview
+# NAV Data Flash (DF) Log Diagnosis – Overview
 
 This repository implements a deterministic NAV-domain diagnostic pipeline for ArduPilot DataFlash logs.
 

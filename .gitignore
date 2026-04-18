@@ -72,4 +72,4 @@ docs/**/test*
 
 # Keep repo clean
 *.log
-*.bak
+*.bakdocs/Navigation/
