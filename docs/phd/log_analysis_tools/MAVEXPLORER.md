@@ -2,7 +2,7 @@
 
 This section contains the direct experimental evidence supporting the observations recorded in the MAVExplorer evaluation.
 
-The evidence is intentionally kept separate from interpretation. Screenshots, console output, and decoded records are reproduced or referenced first; conclusions are recorded afterward.
+The evidence is intentionally kept separate from interpretation. Screenshots, console output, decoded records, and source-level observations are reproduced or referenced first; conclusions are recorded afterward.
 
 ---
 
@@ -17,7 +17,7 @@ MAV> graph : display a graph
 
 ### Evidence
 
-[PASTE SCREENSHOT / TERMINAL OUTPUT HERE]
+The MAVExplorer command interface exposes a `graph` command for telemetry visualization.
 
 ### Establishes
 
@@ -35,7 +35,9 @@ MAV> graph GPS.NSats
 
 ### Evidence
 
-[PASTE GPS.NSats GRAPH HERE]
+![E02 — GPS.NSats graph](./evidence/E02_gps_nsats_graph.png)
+
+**Evidence artifact:** `evidence/E02_gps_nsats_graph.png`
 
 ### Observation
 
@@ -71,7 +73,9 @@ MAV> graph XKF1.VN
 
 ### Evidence
 
-[PASTE XKF1.VN GRAPH HERE]
+![E03 — XKF1.VN graph](./evidence/E03_xkf1_vn_graph.png)
+
+**Evidence artifact:** `evidence/E03_xkf1_vn_graph.png`
 
 ### Observation
 
@@ -93,7 +97,9 @@ MAV> graph GPS.NSats XKF1.VN
 
 ### Evidence
 
-[PASTE MULTI-TRACE GRAPH HERE]
+![E04 — GPS.NSats and XKF1.VN](./evidence/E04_gps_nsats_xkf1_vn.png)
+
+**Evidence artifact:** `evidence/E04_gps_nsats_xkf1_vn.png`
 
 ### Observation
 
@@ -117,15 +123,17 @@ MAV> graph GPS.NSats XKF1.VN:2
 
 ### Evidence
 
-[PASTE DUAL-AXIS GRAPH HERE]
+![E05 — Dual-axis graph](./evidence/E05_gps_nsats_xkf1_vn_dual_axis.png)
+
+**Evidence artifact:** `evidence/E05_gps_nsats_xkf1_vn_dual_axis.png`
 
 ### Observation
 
 The graph displays:
 
-* `GPS.NSats` using the primary Y-axis.
-* `XKF1.VN` using a secondary Y-axis.
-* Both signals remain aligned on the same time axis.
+- `GPS.NSats` using the primary Y-axis.
+- `XKF1.VN` using a secondary Y-axis.
+- Both signals remain aligned on the same time axis.
 
 ### Establishes
 
@@ -143,11 +151,15 @@ MAV> stats
 
 ### Evidence
 
-```text
-[PASTE COMPLETE OR RELEVANT STATS OUTPUT HERE]
-```
+![E06 — MAVExplorer statistics](./evidence/E06_stats.png)
 
-Relevant observed output included:
+**Evidence artifact:** `evidence/E06_stats.png`
+
+The complete text output is retained separately:
+
+[E06_stats.txt](./evidence/E06_stats.txt)
+
+### Relevant observed output
 
 ```text
 GPS   0.13%
@@ -206,17 +218,23 @@ categories = {
 }
 ```
 
+### Observation
+
+The category information is not merely an interpretation made by us from the `stats` output.
+
+Predefined category mappings exist in the installed MAVProxy implementation.
+
 ### Establishes
 
-The category information is not merely an interpretation made by us from the `stats` output. Predefined category mappings exist in the installed MAVProxy implementation.
+The category information is implemented in the existing MAVProxy source rather than being inferred solely from the observed statistics.
 
-This is important evidence that the existing tool already provides an organizational layer above individual DataFlash message names.
+This is evidence that the existing tool already provides an organizational layer above individual DataFlash message names.
 
 ---
 
 ## Evidence 8 — GPS Raw Record / FMT Structure
 
-### FMT evidence
+### FMT Evidence
 
 ```text
 FMT {
@@ -230,7 +248,26 @@ FMT {
 
 ### Evidence
 
-[PASTE RELEVANT `FMT GPS` OUTPUT HERE]
+The `GPS` DataFlash message contains structural information describing its encoding and fields.
+
+Relevant fields include:
+
+```text
+TimeUS
+I
+Status
+GMS
+GWk
+NSats
+HDop
+Lat
+Lng
+Alt
+Spd
+GCrs
+VZ
+Yaw
+```
 
 ### Establishes
 
@@ -248,9 +285,9 @@ MAV> dump GPS
 
 ### Evidence
 
-```text
-[PASTE ACTUAL dump GPS OUTPUT HERE]
-```
+The decoded GPS record output is retained as a text evidence artifact:
+
+[E09 — GPS dump](./evidence/E09_gps_dump.txt)
 
 ### Relevant fields
 
@@ -283,9 +320,9 @@ MAV> dump XKF1
 
 ### Evidence
 
-```text
-[PASTE ACTUAL dump XKF1 OUTPUT HERE]
-```
+The decoded XKF1 record output is retained as a text evidence artifact:
+
+[E10 — XKF1 dump](./evidence/E10_xkf1_dump.txt)
 
 ### Relevant fields
 
@@ -313,6 +350,10 @@ MAVExplorer can expose decoded estimator records independently from GPS records.
 
 ### Evidence
 
+![E11 — Messages and events](./evidence/E11_messages.png)
+
+**Evidence artifact:** `evidence/E11_messages.png`
+
 Observed event messages included:
 
 ```text
@@ -327,10 +368,6 @@ EKF3 IMU1 origin set
 EKF3 IMU1 is using GPS
 ```
 
-### Full evidence
-
-[PASTE RELEVANT MSG / CONSOLE OUTPUT HERE]
-
 ### Establishes
 
 The log contains explicit event information in addition to numerical telemetry.
@@ -339,19 +376,19 @@ The log contains explicit event information in addition to numerical telemetry.
 
 # Evidence-to-Finding Matrix
 
-| Evidence | Directly demonstrates         | Research relevance                 |
-| -------- | ----------------------------- | ---------------------------------- |
-| E1       | Graph command exists          | Analyst access                     |
-| E2       | GPS field plotting            | Sensor observation                 |
-| E3       | EKF field plotting            | Estimator observation              |
-| E4       | Multiple signals on one graph | Cross-signal visualization         |
-| E5       | Secondary Y-axis              | Heterogeneous signal visualization |
-| E6       | Message statistics/categories | Existing organization              |
-| E7       | Category implementation       | Source-level confirmation          |
-| E8       | FMT structure                 | DataFlash structural decoding      |
-| E9       | GPS decoded records           | Raw observation access             |
-| E10      | EKF decoded records           | Estimator observation access       |
-| E11      | Event records                 | Event-level evidence               |
+| Evidence | Directly demonstrates | Research relevance |
+|---|---|---|
+| E1 | Graph command exists | Analyst access |
+| E2 | GPS field plotting | Sensor observation |
+| E3 | EKF field plotting | Estimator observation |
+| E4 | Multiple signals on one graph | Cross-signal visualization |
+| E5 | Secondary Y-axis | Heterogeneous signal visualization |
+| E6 | Message statistics/categories | Existing organization |
+| E7 | Category implementation | Source-level confirmation |
+| E8 | FMT structure | DataFlash structural decoding |
+| E9 | GPS decoded records | Raw observation access |
+| E10 | EKF decoded records | Estimator observation access |
+| E11 | Event records | Event-level evidence |
 
 ---
 
@@ -359,12 +396,12 @@ The log contains explicit event information in addition to numerical telemetry.
 
 The experiments above do **not** by themselves establish that MAVExplorer:
 
-* automatically diagnoses GPS failures;
-* automatically determines root cause;
-* automatically correlates GPS and EKF events;
-* automatically assigns engineering significance to every value;
-* automatically creates a complete NAV/EST/COM/SYSTEM/POWER diagnostic model;
-* or lacks all forms of semantic information internally.
+- automatically diagnoses GPS failures;
+- automatically determines root cause;
+- automatically correlates GPS and EKF events;
+- automatically assigns engineering significance to every value;
+- automatically creates a complete NAV/EST/COM/SYSTEM/POWER diagnostic model;
+- or lacks all forms of semantic information internally.
 
 Those questions require separate experiments.
 
@@ -392,6 +429,8 @@ multi-signal graph
 secondary-axis visualization
      ↓
 decoded record inspection
+     ↓
+event/message inspection
 ```
 
 The remaining research question is what happens **between these observations and a reproducible diagnosis**.
@@ -431,22 +470,44 @@ to:
 
 `How much reasoning and evidence assembly remains with the developer?`
 
-
 ---
 
-# Evidence Artifacts
+# Evidence Repository Structure
 
-The following artifacts are the direct experimental evidence referenced by the report.
+The evidence used by this report is stored alongside the report:
 
-| Evidence | Artifact |
-|---|---|
-| E02 — GPS.NSats graph | ![E02 — GPS.NSats graph](./evidence/E02_gps_nsats_graph.png) |
-| E03 — XKF1.VN graph | ![E03 — XKF1.VN graph](./evidence/E03_xkf1_vn_graph.png) |
-| E04 — GPS.NSats + XKF1.VN | ![E04 — GPS.NSats and XKF1.VN](./evidence/E04_gps_nsats_xkf1_vn.png) |
-| E05 — Dual-axis graph | ![E05 — Dual-axis graph](./evidence/E05_gps_nsats_xkf1_vn_dual_axis.png) |
-| E06 — Statistics screenshot | ![E06 — MAVExplorer statistics](./evidence/E06_stats.png) |
-| E06 — Statistics text | [E06_stats.txt](./evidence/E06_stats.txt) |
-| E09 — GPS dump | [E09_gps_dump.txt](./evidence/E09_gps_dump.txt) |
-| E10 — XKF1 dump | [E10_xkf1_dump.txt](./evidence/E10_xkf1_dump.txt) |
-| E11 — Messages/events | ![E11 — Messages and events](./evidence/E11_messages.png) |
+```text
+docs/phd/log_analysis_tools/
+├── MAVEXPLORER.md
+├── MAVEXPLORER.md.bak
+└── evidence/
+    ├── E02_gps_nsats_graph.png
+    ├── E03_xkf1_vn_graph.png
+    ├── E04_gps_nsats_xkf1_vn.png
+    ├── E05_gps_nsats_xkf1_vn_dual_axis.png
+    ├── E06_stats.png
+    ├── E06_stats.txt
+    ├── E09_gps_dump.txt
+    ├── E10_xkf1_dump.txt
+    └── E11_messages.png
+```
+
+The PNG evidence is embedded directly in the corresponding Evidence sections using repository-relative paths:
+
+```text
+./evidence/E02_gps_nsats_graph.png
+./evidence/E03_xkf1_vn_graph.png
+./evidence/E04_gps_nsats_xkf1_vn.png
+./evidence/E05_gps_nsats_xkf1_vn_dual_axis.png
+./evidence/E06_stats.png
+./evidence/E11_messages.png
+```
+
+The text evidence is linked directly:
+
+```text
+./evidence/E06_stats.txt
+./evidence/E09_gps_dump.txt
+./evidence/E10_xkf1_dump.txt
+```
 
